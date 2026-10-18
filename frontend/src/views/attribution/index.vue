@@ -103,7 +103,10 @@
                 </el-table>
               </el-card>
               <el-card shadow="never">
-                <div class="fig-title">运营建议（归因 → 决策）</div>
+                <div class="fig-title">
+                  运营建议（归因 → 决策）
+                  <el-button size="small" style="float:right" @click="exportReport">导出报告</el-button>
+                </div>
                 <ul class="advice-list">
                   <li v-for="(a, i) in explain.advice" :key="i">{{ a }}</li>
                 </ul>
@@ -210,6 +213,34 @@ export default {
         this.pdp = re.response || null
         this.pdpLoading = false
       }).catch(() => { this.pdpLoading = false })
+    },
+    exportReport () {
+      const e = this.explain
+      if (!e) return
+      const f = this.form
+      const lines = []
+      lines.push('短视频热度归因分析报告')
+      lines.push('分析参数,' + ['视频类别=' + f.videoCategory, '作者粉丝数=' + f.authorFans,
+        '发布小时=' + f.publishHour, '发布星期=' + f.publishWeekday, '发布月份=' + f.publishMonth].join(' '))
+      lines.push('预测热度,' + e.prediction + ',log1p,' + e.prediction_log + ',基线,' + e.base_value)
+      lines.push('')
+      lines.push('特征,取值,SHAP贡献(log空间)')
+      ;(e.contributions || []).forEach(c => {
+        lines.push([c.feature_cn, c.value, c.shap].join(','))
+      })
+      lines.push('')
+      lines.push('运营建议')
+      ;(e.advice || []).forEach((a, i) => {
+        lines.push((i + 1) + ',' + String(a).replace(/,/g, '，'))
+      })
+      const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = '归因报告_' + f.videoCategory + '_' + new Date().toISOString().slice(0, 10) + '.csv'
+      link.click()
+      URL.revokeObjectURL(url)
+      this.$message.success('归因报告已导出')
     },
     fmt (v) {
       return v == null ? '-' : Number(v).toFixed(3)
