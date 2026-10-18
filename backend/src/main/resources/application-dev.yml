@@ -1,0 +1,39 @@
+
+
+logging:
+  file:
+    path: ./log/
+
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+  datasource:
+    url: jdbc:mysql://localhost:3306/short_video_heat_db?useSSL=false&useUnicode=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&allowPublicKeyRetrieval=true&allowMultiQueries=true
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+system:
+  python:
+    # 本系统虚拟环境与算法引擎（同构改造自课程项目 movie-system，工程自包含）
+    # 注意：以下路径均为相对路径，以「backend 目录」为工作目录解析
+    # （IDE 点运行 / 在 backend 下执行 java -jar / mvn spring-boot:run 均满足）。
+    # 因此把整个 short-video-heat-prediction 目录拷贝到任何机器、任何盘符都无需改动本配置。
+    path: '../.venv/Scripts/python.exe'
+    script: '../algorithm/recommendation/recommend_api.py'
+    predictScript: '../algorithm/prediction/predict_api.py'
+    attributionScript: '../algorithm/attribution/shap_analysis.py'
+    gradingScript: '../algorithm/grading/grade_cluster.py'
+  eda:
+    # Python 离线 EDA 图输出目录，通过 /eda/** 暴露给前端「特征探索分析」页面
+    dir: '../algorithm/FeatureEDA/figures'
+  attribution:
+    # 归因分析图输出目录，通过 /attribution/** 暴露给前端「归因分析」页面
+    dir: '../algorithm/attribution/figures'
+  grading:
+    # 热度分级图输出目录，通过 /grading/** 暴露给前端「热度分级」页面
+    dir: '../algorithm/grading/figures'
+  data:
+    # 规范化数据集（preprocess.py 产出），供「数据管理」页面读取总览与样本预览
+    processed: '../data/processed/train_clean.csv'
