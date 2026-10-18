@@ -90,51 +90,6 @@ const constantRoutes = [
     ]
   },
   {
-    path: '/video',
-    component: Layout,
-    name: 'ExamPage',
-    hidden: true,
-    meta: {
-      title: '媒体管理',
-      icon: 'exam'
-    },
-    children: [
-      {
-        path: 'list',
-        component: () => import('@/views/video/list'),
-        name: 'VideoPageList',
-        meta: { title: '视频列表', noCache: true }
-      },
-      {
-        path: 'edit',
-        component: () => import('@/views/video/edit'),
-        name: 'Edit',
-        meta: { title: '视频编辑', noCache: true, activeMenu: '/video/list' },
-        hidden: true
-      },
-      {
-        path: 'details',
-        component: () => import('@/views/video/details'),
-        name: 'Details',
-        meta: { title: '视频详情', noCache: true, activeMenu: '/video/list' },
-        hidden: true
-      },
-      {
-        path: 'play',
-        component: () => import('@/views/video/play'),
-        name: 'Play',
-        meta: { title: '视频播放', noCache: true, activeMenu: '/video/list' },
-        hidden: true
-      },
-      {
-        path: 'video/upload',
-        component: () => import('@/views/video/upload'),
-        name: 'VideoUpload',
-        meta: { title: '视频上传', noCache: true }
-      }
-    ]
-  },
-  {
     path: '/analysis',
     component: Layout,
     name: 'Analysis',
@@ -145,71 +100,10 @@ const constantRoutes = [
     alwaysShow: true,
     children: [
       {
-        path: 'list',
-        component: () => import('@/views/analysis/userAttrAnalysis'),
-        name: 'TaskListPage',
-        hidden: true,
-        meta: { title: '用户属性分析', noCache: true }
-      },
-      {
-        path: 'edit',
-        component: () => import('@/views/analysis/videoAttrAnalysis'),
-        name: 'TaskEditPage',
-        hidden: true,
-        meta: { title: '视频属性分析', noCache: true }
-      },
-      {
         path: 'eda',
         component: () => import('@/views/analysis/edaAnalysis'),
         name: 'EdaAnalysisPage',
         meta: { title: '特征探索分析（Python EDA）', noCache: true }
-      },
-      {
-        path: 'userAnalysis',
-        component: () => import('@/views/analysis/userAnalysis'),
-        name: 'userAnalysis',
-        meta: {
-          title: '用户分析',
-          noCache: true,
-          activeMenu: '/analysis/userList'
-        },
-        hidden: true
-      },
-      {
-        path: 'screen',
-        component: () => import('@/views/analysis/screen'),
-        name: 'Screen',
-        meta: {
-          title: '数据可视化分析',
-          noCache: true,
-          activeMenu: '/analysis/userList'
-        },
-        hidden: true
-      }
-    ]
-  },
-  {
-    path: '/recommend',
-    component: Layout,
-    name: 'RecommendPage',
-    hidden: true,
-    meta: {
-      title: '视频推荐',
-      icon: 'education'
-    },
-    alwaysShow: true,
-    children: [
-      {
-        path: 'UserList',
-        component: () => import('@/views/recommend/index'),
-        name: 'RecommendIndex',
-        meta: { title: '用户属性推荐', noCache: true, mode: 'user' }
-      },
-      {
-        path: 'subject/edit',
-        component: () => import('@/views/recommend/index'),
-        name: 'RecommendMovieIndex',
-        meta: { title: '视频属性推荐', noCache: true, mode: 'video' }
       }
     ]
   },

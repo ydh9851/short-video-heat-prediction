@@ -6,5 +6,7 @@ export default {
   // 批量预测（多条：类别/粉丝数/发布时段 → 预测热度 + 等级）
   predictBatch: query => post('/api/predict/batch', query, 180000),
   // 多模型对照：各模型评估指标
-  metrics: () => get('/api/predict/metrics', null, 120000)
+  metrics: () => get('/api/predict/metrics', null, 120000),
+  // 预测记录分页查询
+  logs: params => get('/api/predict/logs', params, 60000)
 }

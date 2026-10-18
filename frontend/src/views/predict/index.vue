@@ -240,6 +240,47 @@
           </el-table>
         </el-card>
       </el-tab-pane>
+
+      <!-- ==================== 预测记录 ==================== -->
+      <el-tab-pane label="预测记录" name="logs">
+        <el-card shadow="never">
+          <div class="card-header">
+            <span class="card-title">预测记录（共 {{ logTotal }} 条）</span>
+            <el-button size="small" @click="loadLogs">刷新</el-button>
+          </div>
+          <el-table :data="logs" v-loading="logsLoading" size="small" stripe>
+            <el-table-column prop="id" label="ID" width="80"/>
+            <el-table-column prop="model" label="模型" width="100"/>
+            <el-table-column prop="videoCategory" label="类别" width="90"/>
+            <el-table-column label="粉丝数" width="110">
+              <template #default="scope">{{ fmtInt(scope.row.authorFans) }}</template>
+            </el-table-column>
+            <el-table-column label="发布信息" min-width="160">
+              <template #default="scope">{{ period(scope.row) }}</template>
+            </el-table-column>
+            <el-table-column label="预测热度" min-width="130">
+              <template #default="scope"><b>{{ fmtInt(scope.row.prediction) }}</b></template>
+            </el-table-column>
+            <el-table-column label="等级" width="100">
+              <template #default="scope">
+                <el-tag :type="gradeTag(scope.row.grade)" size="small">{{ scope.row.grade }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="来源" width="90">
+              <template #default="scope">{{ scope.row.source === 'batch' ? '批量' : '单条' }}</template>
+            </el-table-column>
+            <el-table-column prop="createTime" label="时间" width="170"/>
+          </el-table>
+          <el-pagination
+            style="margin-top:12px;text-align:right"
+            background
+            layout="total, prev, pager, next"
+            :total="logTotal"
+            :page-size="logSize"
+            :current-page="logPage"
+            @current-change="onLogPage"/>
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -275,7 +316,12 @@ export default {
       batchResult: null,
       batchRows: [],
       metrics: [],
-      metricsLoading: false
+      metricsLoading: false,
+      logs: [],
+      logsLoading: false,
+      logTotal: 0,
+      logPage: 1,
+      logSize: 10
     }
   },
   methods: {
@@ -287,6 +333,8 @@ export default {
       predictApi.predict({ ...this.form }).then(re => {
         this.result = re.response || {}
         this.loading = false
+        this.logPage = 1
+        this.loadLogs()
       }).catch(() => { this.loading = false })
     },
     fillBatchExample () {
@@ -345,12 +393,39 @@ export default {
         this.batchResult = re.response || null
         this.batchRows = (this.batchResult && this.batchResult.results) || []
         this.batchLoading = false
+        this.logPage = 1
+        this.loadLogs()
       }).catch(() => { this.batchLoading = false })
     },
     onTabChange (name) {
       if (name === 'compare' && !this.metrics.length) {
         this.loadMetrics()
       }
+      if (name === 'logs') {
+        this.loadLogs()
+      }
+    },
+    loadLogs () {
+      this.logsLoading = true
+      predictApi.logs({ page: this.logPage, size: this.logSize }).then(re => {
+        const r = re.response || {}
+        this.logs = r.list || []
+        this.logTotal = r.total || 0
+        this.logsLoading = false
+      }).catch(() => { this.logsLoading = false })
+    },
+    onLogPage (p) {
+      this.logPage = p
+      this.loadLogs()
+    },
+    period (row) {
+      if (row.publishHour == null) return '-'
+      const wd = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+      return `${row.publishHour} 点 / ${wd[row.publishWeekday] || '-'} / ${row.publishMonth} 月`
+    },
+    fmtInt (v) {
+      if (v == null || Number.isNaN(Number(v))) return '-'
+      return Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 })
     },
     loadMetrics () {
       this.metricsLoading = true

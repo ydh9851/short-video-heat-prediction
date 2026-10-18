@@ -21,7 +21,6 @@ system:
     # （IDE 点运行 / 在 backend 下执行 java -jar / mvn spring-boot:run 均满足）。
     # 因此把整个 short-video-heat-prediction 目录拷贝到任何机器、任何盘符都无需改动本配置。
     path: '../.venv/Scripts/python.exe'
-    script: '../algorithm/recommendation/recommend_api.py'
     predictScript: '../algorithm/prediction/predict_api.py'
     attributionScript: '../algorithm/attribution/shap_analysis.py'
     gradingScript: '../algorithm/grading/grade_cluster.py'
