@@ -1,0 +1,17 @@
+     # 短视频热度预测与归因分析系统 —— Python 算法引擎依赖
+# 安装：pip install -r requirements.txt
+# （安装失败时可加 -i https://pypi.tuna.tsinghua.edu.cn/simple 走清华镜像）
+
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
+openpyxl>=3.1.0
+
+# --- 建模 / 可解释性依赖（algorithm/prediction 与 algorithm/attribution） ---
+scikit-learn>=1.5.0
+lightgbm>=4.3.0
+xgboost>=2.0.0
+shap>=0.45.0
+joblib>=1.3.0
+scipy>=1.11.0
