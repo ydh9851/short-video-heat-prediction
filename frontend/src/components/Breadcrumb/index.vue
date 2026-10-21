@@ -66,13 +66,29 @@ export default {
 <style lang="scss" scoped>
 .app-breadcrumb.el-breadcrumb {
   display: inline-block;
-  font-size: 14px;
-  line-height: 50px;
-  margin-left: 8px;
+  font-size: 13.5px;
+  line-height: 32px;
+  margin-left: 4px;
 
   .no-redirect {
-    color: #97a8be;
+    color: #94a3b8;
     cursor: text;
+  }
+
+  ::v-deep .el-breadcrumb__inner,
+  ::v-deep .el-breadcrumb__inner a {
+    color: #94a3b8;
+    font-weight: 400;
+    transition: color .2s;
+
+    &:hover {
+      color: #6366f1;
+    }
+  }
+
+  ::v-deep .el-breadcrumb__separator {
+    color: #cbd2e0;
+    margin: 0 6px;
   }
 }
 </style>

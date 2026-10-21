@@ -296,6 +296,264 @@ def mode_pdp(feature, grid_size=20):
     }
 
 
+def mode_interaction(sample=300, top=8):
+    """
+    SHAP 交互效应：量化「两个特征共同作用」带来的额外贡献。
+    输出交互强度最高的特征对（对角线为各特征主效应强度），用于回答
+    "粉丝数之外，是否还存在组合效应"（如 类别 × 发布时段）。
+    """
+    import shap
+    bundle = _get_model()
+    model = bundle["model"]
+    X_train, y_train, X_test, y_test, meta = P._prepare()
+
+    n = min(sample, len(X_train))
+    X_smp = X_train.sample(n=n, random_state=42)
+    explainer = shap.TreeExplainer(model)
+
+    inter = np.asarray(explainer.shap_interaction_values(X_smp), dtype=float)
+    if inter.ndim == 4:          # (n, F, F, outputs) -> 取第一个输出
+        inter = inter[:, :, :, 0]
+    mean_abs = np.abs(inter).mean(axis=0)      # (F, F)
+
+    F = len(P.FEATURE_NAMES)
+    pairs = []
+    for i in range(F):
+        for j in range(i, F):
+            is_diag = (i == j)
+            pairs.append({
+                "feature_a": P.FEATURE_NAMES[i],
+                "feature_b": P.FEATURE_NAMES[j],
+                "feature_a_cn": FEATURE_CN.get(P.FEATURE_NAMES[i], P.FEATURE_NAMES[i]),
+                "feature_b_cn": FEATURE_CN.get(P.FEATURE_NAMES[j], P.FEATURE_NAMES[j]),
+                "is_main_effect": bool(is_diag),
+                "interaction": float(mean_abs[i, j]),
+            })
+    pairs.sort(key=lambda p: -p["interaction"])
+
+    # 只保留"真正的两两交互"（排除主效应）用于排序展示
+    cross = [p for p in pairs if not p["is_main_effect"]]
+    diag = [{"feature": p["feature_a"], "feature_cn": p["feature_a_cn"],
+             "main_effect": p["interaction"]} for p in pairs if p["is_main_effect"]]
+
+    fig, ax = plt.subplots(figsize=(8.5, 4.8))
+    labels = [f"{p['feature_a_cn']} × {p['feature_b_cn']}" for p in cross[:top]][::-1]
+    vals = [p["interaction"] for p in cross[:top]][::-1]
+    ax.barh(range(len(vals)), vals, color="#8b5cf6")
+    ax.set_yticks(range(len(vals)))
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_xlabel("平均 |SHAP 交互值|（log 空间）")
+    ax.set_title("特征交互效应 Top 组合")
+    ax.grid(axis="x", alpha=.25)
+    fig.tight_layout()
+    fig.savefig(os.path.join(FIG_DIR, "shap_interaction.png"), dpi=130)
+    plt.close(fig)
+
+    strongest = cross[0] if cross else None
+    return {
+        "mode": "interaction",
+        "figure": "shap_interaction.png",
+        "top_pairs": cross[:top],
+        "main_effects": sorted(diag, key=lambda d: -d["main_effect"]),
+        "strongest_pair": strongest,
+        "note": "对角线为主效应强度；两两交互值普遍远小于主效应，说明本模型以单特征效应为主。",
+    }
+
+
+# 反事实搜索空间（仅选"运营方可直接调整"的维度）
+_MUT_HOURS = list(range(24))
+_MUT_WEEKDAYS = list(range(7))
+_MUT_MONTHS = list(range(1, 13))
+
+
+def mode_counterfactual(category, fans, hour, weekday, month):
+    """
+    反事实分析：固定其他条件，把某个可调整维度改到"最优取值"后，热度预计变化多少。
+    这是「归因 → 运营决策」闭环的直接量化形式。
+    """
+    bundle = _get_model()
+    model = bundle["model"]
+    meta = bundle["meta"]
+    train, _ = P._load_frames()
+    categories = sorted(train["video_category"].astype(str).unique().tolist())
+
+    def heat_of(cat, fans_, hour_, wd_, mon_):
+        row = pd.DataFrame([{
+            "video_category": str(cat),
+            "hour_bucket": P._hour_bucket(hour_),
+            "author_fans_log": float(np.log1p(max(float(fans_), 0.0))),
+            "publish_hour": float(hour_),
+            "publish_weekday": float(wd_),
+            "publish_month": float(mon_),
+            "is_weekend": 1 if int(wd_) in (5, 6) else 0,
+        }])
+        X = P._encode_frame(row, meta["cat_maps"], meta["cat_modes"])
+        return float(np.expm1(model.predict(X)[0]))
+
+    base = heat_of(category, fans, hour, weekday, month)
+    suggestions = []
+
+    # (1) 发布小时
+    scored = [(heat_of(category, fans, h, weekday, month), h) for h in _MUT_HOURS]
+    scored.sort(reverse=True)
+    best_h = scored[0][1]
+    if best_h != int(hour):
+        suggestions.append({"dimension": "发布小时", "from": int(hour), "to": int(best_h),
+                            "heat": scored[0][0], "delta": scored[0][0] - base})
+    # (2) 发布星期
+    scored = [(heat_of(category, fans, hour, w, month), w) for w in _MUT_WEEKDAYS]
+    scored.sort(reverse=True)
+    wd_cn = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    if scored[0][1] != int(weekday):
+        suggestions.append({"dimension": "发布星期", "from": wd_cn[int(weekday)], "to": wd_cn[scored[0][1]],
+                            "heat": scored[0][0], "delta": scored[0][0] - base})
+    # (3) 发布月份
+    scored = [(heat_of(category, fans, hour, weekday, m), m) for m in _MUT_MONTHS]
+    scored.sort(reverse=True)
+    if scored[0][1] != int(month):
+        suggestions.append({"dimension": "发布月份", "from": f"{int(month)} 月", "to": f"{scored[0][1]} 月",
+                            "heat": scored[0][0], "delta": scored[0][0] - base})
+    # (4) 视频类别（换赛道）
+    scored = [(heat_of(c, fans, hour, weekday, month), c) for c in categories]
+    scored.sort(reverse=True)
+    if str(scored[0][1]) != str(category):
+        suggestions.append({"dimension": "视频类别", "from": str(category), "to": str(scored[0][1]),
+                            "heat": scored[0][0], "delta": scored[0][0] - base})
+
+    for s in suggestions:
+        s["delta_pct"] = (s["delta"] / base * 100.0) if base else 0.0
+        s["grade"] = P.grade_of(s["heat"])
+    suggestions.sort(key=lambda s: -s["delta"])
+
+    # 可视化：各"最优调整"相对基准的提升幅度
+    if suggestions:
+        fig, ax = plt.subplots(figsize=(8, 4.2))
+        labels = [f"{s['dimension']}: {s['from']} → {s['to']}" for s in suggestions][::-1]
+        vals = [s["delta_pct"] for s in suggestions][::-1]
+        colors = ["#10b981" if v > 0 else "#94a3b8" for v in vals]
+        ax.barh(range(len(vals)), vals, color=colors)
+        ax.set_yticks(range(len(vals)))
+        ax.set_yticklabels(labels, fontsize=9)
+        ax.set_xlabel("预计热度变化（%，相对当前条件）")
+        ax.set_title("反事实分析：可调整维度对热度的提升空间")
+        ax.grid(axis="x", alpha=.25)
+        fig.tight_layout()
+        fig.savefig(os.path.join(FIG_DIR, "counterfactual.png"), dpi=130)
+        plt.close(fig)
+
+    return {
+        "mode": "counterfactual",
+        "base_heat": base,
+        "base_grade": P.grade_of(base),
+        "figure": "counterfactual.png" if suggestions else None,
+        "suggestions": suggestions,
+        "non_mutable": [{
+            "dimension": "作者粉丝数",
+            "value": float(fans),
+            "note": "粉丝基数无法在单条内容层面直接改变，需通过账号长期运营/矩阵号导流积累。",
+        }],
+    }
+
+
+# 4 个真实平台（与 algorithm/datasets/platform_schema.py 保持一致）
+CROSS_PLATFORMS = [("douyin", "抖音"), ("youtube", "YouTube"),
+                   ("tiktok", "TikTok"), ("bilibili", "哔哩哔哩")]
+
+
+def mode_cross_platform(sample=1500):
+    """
+    跨平台 SHAP 特征贡献对照：
+    对 4 个平台分别训练 LightGBM 并计算 SHAP 平均绝对贡献，归一化成"贡献占比"，
+    从而回答「同一特征（如作者粉丝数）在不同平台上的重要性是否一致」。
+    """
+    import shap
+    per_platform = []
+    shares = {}          # platform -> {feature: share}
+    ranks = {}           # platform -> {feature: rank}
+    for pf, cn in CROSS_PLATFORMS:
+        bundle, _ = P.load_or_train("lgbm", platform=pf)
+        model = bundle["model"]
+        X_train, y_train, X_test, y_test, meta = P._prepare(platform=pf)
+        n = min(sample, len(X_train))
+        X_smp = X_train.sample(n=n, random_state=42)
+        sv = _tree_shap(shap.TreeExplainer(model), X_smp)
+        mean_abs = np.abs(sv).mean(axis=0)
+        total = float(mean_abs.sum()) or 1.0
+        share = mean_abs / total
+        order = np.argsort(mean_abs)[::-1]
+        rank = {int(i): r + 1 for r, i in enumerate(order)}
+        feats = [{
+            "feature": P.FEATURE_NAMES[i],
+            "feature_cn": FEATURE_CN.get(P.FEATURE_NAMES[i], P.FEATURE_NAMES[i]),
+            "importance": float(mean_abs[i]),
+            "share": float(share[i]),
+            "rank": rank[i],
+        } for i in range(len(P.FEATURE_NAMES))]
+        shares[pf] = {f["feature"]: f["share"] for f in feats}
+        ranks[pf] = {f["feature"]: f["rank"] for f in feats}
+        per_platform.append({
+            "platform": pf, "platform_cn": cn,
+            "n_train": int(len(X_train)),
+            "r2": float(bundle["metrics"]["r2"]),
+            "features": feats,
+            "top_features": sorted(feats, key=lambda f: f["rank"])[:4],
+        })
+        print(f"[cross-platform] {pf} n={len(X_train)} r2={bundle['metrics']['r2']:.4f} "
+              f"top={feats[0]['feature']}", file=sys.stderr)
+
+    # 以抖音为参照，给出各特征跨平台的贡献占比矩阵（行=特征，列=平台）
+    ref = shares["douyin"]
+    feature_matrix = []
+    for f in P.FEATURE_NAMES:
+        row = {"feature": f, "feature_cn": FEATURE_CN.get(f, f),
+               "douyin_share": ref.get(f, 0.0),
+               "max_share": max(shares[pf].get(f, 0.0) for pf, _ in CROSS_PLATFORMS),
+               "min_share": min(shares[pf].get(f, 0.0) for pf, _ in CROSS_PLATFORMS),
+               "spread": max(shares[pf].get(f, 0.0) for pf, _ in CROSS_PLATFORMS)
+                         - min(shares[pf].get(f, 0.0) for pf, _ in CROSS_PLATFORMS)}
+        for pf, _ in CROSS_PLATFORMS:
+            row[pf + "_share"] = shares[pf].get(f, 0.0)
+            row[pf + "_rank"] = ranks[pf].get(f, -1)
+        feature_matrix.append(row)
+    feature_matrix.sort(key=lambda r: -r["spread"])
+
+    # 热力图：特征 × 平台的 SHAP 贡献占比
+    cols = [pf for pf, _ in CROSS_PLATFORMS]
+    col_cn = [cn for _, cn in CROSS_PLATFORMS]
+    order_feat = [f for f in P.FEATURE_NAMES]
+    mat = np.array([[shares[pf][f] for pf in cols] for f in order_feat])
+    fig, ax = plt.subplots(figsize=(7.6, 5.2))
+    im = ax.imshow(mat, cmap="YlGnBu", aspect="auto")
+    ax.set_xticks(range(len(cols)))
+    ax.set_xticklabels(col_cn)
+    ax.set_yticks(range(len(order_feat)))
+    ax.set_yticklabels([FEATURE_CN.get(f, f) for f in order_feat])
+    for i in range(len(order_feat)):
+        for j in range(len(cols)):
+            v = mat[i, j]
+            ax.text(j, i, f"{v:.2f}", ha="center", va="center",
+                    color="#1e293b" if v < mat.max() * 0.6 else "#fff", fontsize=9)
+    ax.set_title("跨平台 SHAP 特征贡献占比对照")
+    fig.colorbar(im, ax=ax, shrink=0.82, label="贡献占比")
+    fig.tight_layout()
+    fig.savefig(os.path.join(FIG_DIR, "cross_platform_shap.png"), dpi=130)
+    plt.close(fig)
+
+    # 一致性结论：贡献占比最高的特征在各平台是否相同
+    top1 = {x["platform"]: x["features"][0]["feature_cn"] for x in per_platform}
+    consistent = len(set(top1.values())) == 1
+    return {
+        "mode": "cross-platform",
+        "figure": "cross_platform_shap.png",
+        "platforms": per_platform,
+        "feature_matrix": feature_matrix,
+        "matrix_columns": [{"key": pf + "_share", "label": cn} for pf, cn in CROSS_PLATFORMS],
+        "top1_by_platform": top1,
+        "top1_consistent": consistent,
+        "spread_features": [r["feature_cn"] for r in feature_matrix[:3]],
+    }
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message):
         raise ValueError(message)
@@ -304,13 +562,18 @@ class _Parser(argparse.ArgumentParser):
 def main():
     try:
         parser = _Parser(prog="shap_analysis.py")
-        parser.add_argument("--mode", default="global", choices=["global", "explain", "pdp"])
+        parser.add_argument("--mode", default="global",
+                            choices=["global", "explain", "pdp", "interaction",
+                                     "counterfactual", "cross-platform"])
+
         parser.add_argument("--category", default="美食")
         parser.add_argument("--fans", type=float, default=1000.0)
         parser.add_argument("--hour", type=int, default=20)
         parser.add_argument("--weekday", type=int, default=5)
         parser.add_argument("--month", type=int, default=6)
         parser.add_argument("--feature", default="author_fans_log")
+        parser.add_argument("--sample", type=int, default=1500,
+                            help="跨平台模式下每个平台的 SHAP 采样行数")
         args = parser.parse_args()
 
         # 与 predict_api 一致的 URL 解码（Java 端传参为 ASCII 安全形式）
@@ -319,8 +582,14 @@ def main():
 
         if args.mode == "global":
             out = mode_global()
+        elif args.mode == "cross-platform":
+            out = mode_cross_platform(args.sample)
         elif args.mode == "pdp":
             out = mode_pdp(args.feature)
+        elif args.mode == "interaction":
+            out = mode_interaction()
+        elif args.mode == "counterfactual":
+            out = mode_counterfactual(category, args.fans, args.hour, args.weekday, args.month)
         else:
             out = mode_explain(category, args.fans, args.hour, args.weekday, args.month)
 

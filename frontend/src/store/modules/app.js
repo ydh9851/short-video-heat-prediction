@@ -20,7 +20,9 @@ const mutations = {
     }
   },
   CLOSE_SIDEBAR: (state, withoutAnimation) => {
-    Cookies.set('sidebarStatus', 0)
+    // 注意：这里不写 cookie。
+    // 只有用户主动点击汉堡按钮（TOGGLE_SIDEBAR）才持久化偏好；
+    // 移动端自适应收起不应被记住，否则换回桌面端会一直处于收起状态。
     state.sidebar.opened = false
     state.sidebar.withoutAnimation = withoutAnimation
   },

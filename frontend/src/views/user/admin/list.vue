@@ -1,44 +1,70 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParam" ref="queryForm" :inline="true">
-      <el-form-item label="用户名：">
-        <el-input v-model="queryParam.userName"></el-input>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="submitForm">查询</el-button>
-        <router-link :to="{path:'/user/admin/edit'}" class="link-left">
-          <el-button type="primary">添加</el-button>
+    <div class="page-head">
+      <div class="page-head-main">
+        <div class="page-title">管理员列表</div>
+        <div class="page-desc">管理系统管理员账号、联系方式与启用状态。</div>
+      </div>
+      <div class="page-head-actions">
+        <router-link :to="{path:'/user/admin/edit'}">
+          <el-button type="primary">新增管理员</el-button>
         </router-link>
-      </el-form-item>
-    </el-form>
+      </div>
+    </div>
 
-    <el-table v-loading="listLoading" :data="tableData" border fit highlight-current-row style="width: 100%">
-      <el-table-column prop="id" label="Id" />
-      <el-table-column prop="userName" label="用户名"/>
-      <el-table-column prop="sex" label="性别" width="60px;" :formatter="sexFormatter"/>
-      <el-table-column prop="phone" label="手机号"/>
-      <el-table-column prop="createTime" label="创建时间" width="160px"/>
-      <el-table-column label="状态" prop="status" width="70px">
-        <template #default="{row}">
-          <el-tag :type="statusTagFormatter(row.status)">
-            {{ statusFormatter(row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column width="220px" label="操作" align="center">
-        <template #default="{row}">
-          <el-button size="small"   @click="changeStatus(row)" class="link-left">
-            {{ statusBtnFormatter(row.status) }}
-          </el-button>
-          <router-link :to="{path:'/user/admin/edit', query:{id:row.id}}" class="link-left">
-            <el-button size="small">编辑</el-button>
-          </router-link>
-          <el-button size="small" type="danger"  @click="deleteUser(row)" class="link-left">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <pagination v-show="total>0" :total="total" v-model:page="queryParam.pageIndex" v-model:limit="queryParam.pageSize"
-                @pagination="search"/>
+    <el-card shadow="never" class="list-card">
+      <div class="list-toolbar">
+        <div class="list-toolbar-filters">
+          <el-input
+            v-model="queryParam.userName"
+            placeholder="搜索用户名"
+            clearable
+            style="width: 240px"
+            @keyup.enter="submitForm"
+            @clear="submitForm">
+            <template #prefix><svg-icon icon-class="search" /></template>
+          </el-input>
+          <el-button type="primary" @click="submitForm">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
+        </div>
+        <div class="list-toolbar-actions">
+          <span class="muted">共 {{ total }} 个管理员</span>
+        </div>
+      </div>
+
+      <el-table v-loading="listLoading" :data="tableData" stripe style="width: 100%">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="userName" label="用户名" min-width="150" />
+        <el-table-column prop="sex" label="性别" width="90" :formatter="sexFormatter" />
+        <el-table-column prop="phone" label="手机号" min-width="150" />
+        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">
+            <span class="status-dot" :class="row.status === 1 ? 'on' : 'off'">
+              <i />{{ statusFormatter(row.status) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="190" fixed="right">
+          <template #default="{ row }">
+            <div class="cell-actions">
+              <el-button link type="primary" @click="changeStatus(row)">
+                {{ statusBtnFormatter(row.status) }}
+              </el-button>
+              <router-link :to="{path:'/user/admin/edit', query:{id:row.id}}">
+                <el-button link type="primary">编辑</el-button>
+              </router-link>
+              <el-button link type="danger" @click="deleteUser(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+        <template #empty><el-empty description="暂无管理员数据" :image-size="80" /></template>
+      </el-table>
+
+      <div class="list-footer">
+        <pagination v-show="total > 0" :total="total" v-model:page="queryParam.pageIndex" v-model:limit="queryParam.pageSize" @pagination="search" />
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -74,35 +100,44 @@ export default {
         this.total = re.total
         this.queryParam.pageIndex = re.pageNum
         this.listLoading = false
-      })
+      }).catch(() => { this.listLoading = false })
+    },
+    resetQuery () {
+      this.queryParam.userName = ''
+      this.queryParam.pageIndex = 1
+      this.search()
     },
     changeStatus (row) {
-      let _this = this
       userApi.changeStatus(row.id).then(re => {
         if (re.code === 1) {
           row.status = re.response
-          _this.$message.success(re.message)
+          this.$message.success(re.message)
         } else {
-          _this.$message.error(re.message)
+          this.$message.error(re.message)
         }
       })
     },
     deleteUser (row) {
-      let _this = this
-      userApi.deleteUser(row.id).then(re => {
-        if (re.code === 1) {
-          _this.search()
-          _this.$message.success(re.message)
-        } else {
-          _this.$message.error(re.message)
-        }
-      })
+      this.$confirm(`确认删除管理员「${row.userName}」？删除后不可恢复。`, '删除确认', {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消'
+      }).then(() => {
+        userApi.deleteUser(row.id).then(re => {
+          if (re.code === 1) {
+            this.search()
+            this.$message.success(re.message)
+          } else {
+            this.$message.error(re.message)
+          }
+        })
+      }).catch(() => {})
     },
     submitForm () {
       this.queryParam.pageIndex = 1
       this.search()
     },
-    sexFormatter  (row, column, cellValue, index) {
+    sexFormatter (row, column, cellValue) {
       return this.enumFormat(this.sexEnum, cellValue)
     },
     statusFormatter (status) {

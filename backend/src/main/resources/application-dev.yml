@@ -24,6 +24,14 @@ system:
     predictScript: '../algorithm/prediction/predict_api.py'
     attributionScript: '../algorithm/attribution/shap_analysis.py'
     gradingScript: '../algorithm/grading/grade_cluster.py'
+    # 模型评估与实验分析脚本（交叉验证 / 超参数搜索 / 学习曲线 / 消融 / 残差等）
+    evaluationScript: '../algorithm/evaluation/model_evaluation.py'
+    # 预测区间（LightGBM 分位数回归 P10/P50/P90）
+    quantileScript: '../algorithm/prediction/quantile_predict.py'
+    # 热度增长曲线预测（TikTok 第 0~30 天真实累计快照）
+    growthScript: '../algorithm/prediction/growth_predict.py'
+    # 多平台数据集导入器（把 data/raw 下各平台原始文件归一化为统一 schema）
+    ingestScript: '../algorithm/datasets/ingest.py'
   eda:
     # Python 离线 EDA 图输出目录，通过 /eda/** 暴露给前端「特征探索分析」页面
     dir: '../algorithm/FeatureEDA/figures'
@@ -33,6 +41,13 @@ system:
   grading:
     # 热度分级图输出目录，通过 /grading/** 暴露给前端「热度分级」页面
     dir: '../algorithm/grading/figures'
+  evaluation:
+    # 模型评估实验图输出目录，通过 /evaluation/** 暴露给前端「模型评估」页面
+    dir: '../algorithm/evaluation/figures'
   data:
     # 规范化数据集（preprocess.py 产出），供「数据管理」页面读取总览与样本预览
     processed: '../data/processed/train_clean.csv'
+    # 各平台归一化产物目录（ingest.py 产出 <platform>_clean.csv）
+    processedDir: '../data/processed'
+    # 多平台数据集注册表（记录各平台样本量、类别数、时间跨度等信息）
+    registry: '../data/processed/dataset_registry.json'

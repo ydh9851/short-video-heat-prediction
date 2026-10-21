@@ -1,22 +1,26 @@
 // base color
-$blue:#324157;
-$light-blue:#3A71A8;
-$red:#C03639;
-$pink: #E65D6E;
-$green: #30B08F;
-$tiffany: #4AB7BD;
-$yellow:#FEC171;
-$panGreen: #30B08F;
+$blue: #6366f1;
+$light-blue: #8b5cf6;
+$red: #ef4444;
+$pink: #ec4899;
+$green: #10b981;
+$tiffany: #14b8a6;
+$yellow: #f59e0b;
+$panGreen: #10b981;
 
-// sidebar
-$menuText:#bfcbd9;
-$menuActiveText:#409EFF;
-$subMenuActiveText:#f4f4f5; // https://github.com/ElemeFE/element/issues/12951
+// sidebar（浅色风格）
+$menuText: #5b6478;
+$menuTextActive: #4f52c1;
+$menuActiveText: #4f52c1;
+$subMenuActiveText: #4f52c1;
 
-$menuBg:#304156;
-$menuHover:#263445;
+$menuBg: #ffffff;
+$menuHover: #f3f5fb;
+$menuActiveBg: #eff0fe;
 
-$subMenuBg:#1f2d3d;
-$subMenuHover:#001528;
+$subMenuBg: #ffffff;
+$subMenuHover: #f3f5fb;
 
-$sideBarWidth: 210px;
+$sideBarWidth: 224px;
+
+// 注：颜色/宽度值同步维护于 variables.js（Vite 不支持 sass 的 :export 语法）

@@ -1,0 +1,219 @@
+{
+  "defaultPlatform": "douyin",
+  "datasets": {
+    "douyin": {
+      "rows": 45476,
+      "categoryCount": 14,
+      "categories": {
+        "搞笑": 8176,
+        "美食": 5474,
+        "音乐": 4123,
+        "美妆": 3647,
+        "穿搭": 3214,
+        "舞蹈": 3208,
+        "旅行": 2749,
+        "宠物": 2683,
+        "影视": 2285,
+        "健身": 2253,
+        "情感": 2244,
+        "游戏": 1826,
+        "生活": 1814,
+        "知识": 1780
+      },
+      "timeStart": "2025-09-01",
+      "timeEnd": "2025-12-26",
+      "heat": {
+        "min": 100.0,
+        "q25": 115.0,
+        "median": 336.0,
+        "q75": 3171.25,
+        "p90": 20867.5,
+        "max": 266001509.0,
+        "mean": 63354.05814055766
+      },
+      "fans": {
+        "median": 961.0,
+        "p90": 48684.0,
+        "max": 73046877.0
+      },
+      "platform": "douyin",
+      "displayName": "抖音",
+      "rawFile": "data/raw/douyin_video_data.xlsx",
+      "processedFile": "data/processed/douyin_clean.csv",
+      "shareAvailable": true,
+      "droppedRows": 0,
+      "columnMapping": {
+        "video_id": "视频ID",
+        "video_category": "视频类别",
+        "author_fans": "作者粉丝数",
+        "play_cnt": "播放量",
+        "like_cnt": "点赞量",
+        "comment_cnt": "评论量",
+        "share_cnt": "转发量",
+        "collect_cnt": "收藏量",
+        "publish_time": "发布时间"
+      },
+      "importTime": "2026-10-20 10:15:02"
+    },
+    "youtube": {
+      "rows": 449791,
+      "categoryCount": 15,
+      "categories": {
+        "Gaming": 118794,
+        "Entertainment": 91962,
+        "Sports": 69083,
+        "Music": 65177,
+        "People & Blogs": 48821,
+        "Film & Animation": 15081,
+        "News & Politics": 11907,
+        "Comedy": 7721,
+        "Science & Technology": 7416,
+        "Autos & Vehicles": 6333,
+        "Education": 3440,
+        "Howto & Style": 2060,
+        "Travel & Events": 1308,
+        "Pets & Animals": 390,
+        "未知": 298
+      },
+      "timeStart": "2024-09-07",
+      "timeEnd": "2025-09-26",
+      "heat": {
+        "min": 579.0,
+        "q25": 443530.0,
+        "median": 1722763.0,
+        "q75": 7171680.0,
+        "p90": 26295178.0,
+        "max": 149949686.0,
+        "mean": 8605590.007679122
+      },
+      "fans": {
+        "median": 3700000.0,
+        "p90": 17300000.0,
+        "max": 304000000.0
+      },
+      "platform": "youtube",
+      "displayName": "YouTube",
+      "rawFile": "data/raw/youtube_trending.csv",
+      "processedFile": "data/processed/youtube_clean.csv",
+      "shareAvailable": false,
+      "droppedRows": 0,
+      "columnMapping": {
+        "video_id": "video_id",
+        "video_category": "video_category_id",
+        "author_fans": "channel_subscriber_count",
+        "play_cnt": "video_view_count",
+        "like_cnt": "video_like_count",
+        "comment_cnt": "video_comment_count",
+        "share_cnt": null,
+        "collect_cnt": null,
+        "publish_time": "video_published_at"
+      },
+      "importTime": "2026-10-20 10:52:08"
+    },
+    "bilibili": {
+      "rows": 1610,
+      "categoryCount": 97,
+      "categories": {
+        "国产原创相关": 84,
+        "数码": 65,
+        "仿妆cos": 51,
+        "搞笑": 50,
+        "鬼畜剧场": 44,
+        "手机游戏": 43,
+        "喵星人": 42,
+        "汽车生活": 41,
+        "日常": 39,
+        "影视杂谈": 38,
+        "人文历史": 37,
+        "同人·手书": 36,
+        "娱乐杂谈": 36,
+        "单机游戏": 34,
+        "小剧场": 32
+      },
+      "timeStart": "2018-03-23",
+      "timeEnd": "2026-10-19",
+      "heat": {
+        "min": 20577.0,
+        "q25": 586328.75,
+        "median": 1244985.5,
+        "q75": 2695314.5,
+        "p90": 5227829.4,
+        "max": 101835999.0,
+        "mean": 2325648.6229813662
+      },
+      "fans": {
+        "median": 365741.5,
+        "p90": 2537303.1000000024,
+        "max": 32185659.0
+      },
+      "platform": "bilibili",
+      "displayName": "哔哩哔哩",
+      "rawFile": "data/raw/bilibili_video_data.csv",
+      "processedFile": "data/processed/bilibili_clean.csv",
+      "shareAvailable": true,
+      "droppedRows": 0,
+      "columnMapping": {
+        "video_id": "视频ID",
+        "video_category": "视频类别",
+        "author_fans": "作者粉丝数",
+        "play_cnt": "播放量",
+        "like_cnt": "点赞量",
+        "comment_cnt": "评论量",
+        "share_cnt": "转发量",
+        "collect_cnt": "收藏量",
+        "publish_time": "发布时间"
+      },
+      "importTime": "2026-10-20 10:52:35"
+    },
+    "tiktok": {
+      "rows": 209502,
+      "categoryCount": 9,
+      "categories": {
+        "Beauty_Fashion": 45198,
+        "Others": 35008,
+        "Life_hacks_Personal_growth": 31760,
+        "Lifestyle": 27661,
+        "Dance_Music": 25119,
+        "Sports_Fitness": 12052,
+        "Cooking_Food": 11932,
+        "Shopping_Products": 10396,
+        "Movies_TV_Books": 10376
+      },
+      "timeStart": "2024-06-24",
+      "timeEnd": "2024-11-09",
+      "heat": {
+        "min": 1.0,
+        "q25": 438.0,
+        "median": 830.0,
+        "q75": 3196.0,
+        "p90": 24978.599999999977,
+        "max": 53421664.0,
+        "mean": 40974.98733186318
+      },
+      "fans": {
+        "median": 14234.0,
+        "p90": 231307.0,
+        "max": 28324100.0
+      },
+      "platform": "tiktok",
+      "displayName": "TikTok",
+      "rawFile": "data/raw/tiktok_videos.csv",
+      "processedFile": "data/processed/tiktok_clean.csv",
+      "shareAvailable": true,
+      "droppedRows": 0,
+      "columnMapping": {
+        "video_id": "video_id",
+        "video_category": "video_category",
+        "author_fans": "author_fans",
+        "play_cnt": "play_cnt",
+        "like_cnt": "like_cnt",
+        "comment_cnt": "comment_cnt",
+        "share_cnt": "share_cnt",
+        "collect_cnt": "collect_cnt",
+        "publish_time": "publish_time"
+      },
+      "importTime": "2026-10-20 10:52:36"
+    }
+  },
+  "updatedAt": "2026-10-20 10:52:36"
+}
