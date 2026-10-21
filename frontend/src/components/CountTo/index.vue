@@ -18,6 +18,11 @@ export default {
     duration: {
       type: Number,
       default: 3000
+    },
+    // 保留小数位，避免出现 0.8182483784403651 这类超长浮点显示
+    decimals: {
+      type: Number,
+      default: 0
     }
   },
   data () {
@@ -45,7 +50,9 @@ export default {
       if (this.rafId) {
         cancelAnimationFrame(this.rafId)
       }
-      const start = this.displayValue
+      const factor = Math.pow(10, this.decimals)
+      const round = v => Math.round(v * factor) / factor
+      const start = round(this.displayValue)
       const change = target - start
       const duration = this.duration || 1
       const step = timestamp => {
@@ -55,11 +62,11 @@ export default {
         const progress = Math.min((timestamp - this.startTime) / duration, 1)
         // easeOutCubic
         const eased = 1 - Math.pow(1 - progress, 3)
-        this.displayValue = Math.round((start + change * eased) * 100) / 100
+        this.displayValue = round(start + change * eased)
         if (progress < 1) {
           this.rafId = requestAnimationFrame(step)
         } else {
-          this.displayValue = target
+          this.displayValue = round(target)
           this.startTime = null
         }
       }

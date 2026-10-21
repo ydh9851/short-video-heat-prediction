@@ -192,67 +192,92 @@ export default {
 
 <style lang="scss" scoped>
 .tags-view-container {
-  height: 34px;
+  height: 40px;
   width: 100%;
   background: #fff;
-  border-bottom: 1px solid #d8dce5;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, .12), 0 0 3px 0 rgba(0, 0, 0, .04);
+  border-bottom: 1px solid #eef0f6;
+  display: flex;
+  align-items: center;
+
   .tags-view-wrapper {
+    width: 100%;
+    height: 100%;
+
     .tags-view-item {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
       position: relative;
       cursor: pointer;
-      height: 26px;
-      line-height: 26px;
-      border: 1px solid #d8dce5;
-      color: #495060;
+      height: 28px;
+      line-height: 28px;
+      border: 1px solid #e6e9f0;
+      border-radius: 999px;
+      color: #5b6478;
       background: #fff;
-      padding: 0 8px;
-      font-size: 12px;
-      margin-left: 5px;
-      margin-top: 4px;
+      padding: 0 12px;
+      font-size: 12.5px;
+      margin-left: 8px;
+      margin-top: 6px;
       text-decoration: none;
+      transition: all .18s ease;
+
       &:first-of-type {
-        margin-left: 15px;
+        margin-left: 16px;
       }
+
       &:last-of-type {
-        margin-right: 15px;
+        margin-right: 16px;
       }
+
+      &:hover {
+        color: #4f52c1;
+        border-color: #cdcffa;
+        background: #f7f8ff;
+      }
+
       &.active {
-        background-color: #42b983;
-        color: #fff;
-        border-color: #42b983;
+        background: var(--app-primary-soft);
+        color: #4f52c1;
+        border-color: #c7c9fb;
+        font-weight: 600;
+
         &::before {
           content: '';
-          background: #fff;
+          background: #6366f1;
           display: inline-block;
-          width: 8px;
-          height: 8px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           position: relative;
-          margin-right: 2px;
+          margin-right: 6px;
         }
       }
     }
   }
+
   .contextmenu {
     margin: 0;
     background: #fff;
     z-index: 3000;
     position: absolute;
     list-style-type: none;
-    padding: 5px 0;
-    border-radius: 4px;
-    font-size: 12px;
+    padding: 6px;
+    border-radius: 12px;
+    font-size: 12.5px;
     font-weight: 400;
-    color: #333;
-    box-shadow: 2px 2px 3px 0 rgba(0, 0, 0, .3);
+    color: #334155;
+    box-shadow: 0 10px 30px rgba(24, 32, 72, .16);
+    border: 1px solid #eef0f6;
+
     li {
       margin: 0;
-      padding: 7px 16px;
+      padding: 7px 14px;
+      border-radius: 8px;
       cursor: pointer;
+
       &:hover {
-        background: #eee;
+        background: var(--app-primary-soft);
+        color: #4f52c1;
       }
     }
   }
@@ -266,18 +291,21 @@ export default {
     .el-icon-close {
       width: 16px;
       height: 16px;
-      vertical-align: 2px;
+      margin-left: 4px;
+      vertical-align: 1px;
       border-radius: 50%;
       text-align: center;
       transition: all .3s cubic-bezier(.645, .045, .355, 1);
       transform-origin: 100% 50%;
+
       &:before {
-        transform: scale(.6);
+        transform: scale(.62);
         display: inline-block;
         vertical-align: -3px;
       }
+
       &:hover {
-        background-color: #b4bccc;
+        background-color: #6366f1;
         color: #fff;
       }
     }

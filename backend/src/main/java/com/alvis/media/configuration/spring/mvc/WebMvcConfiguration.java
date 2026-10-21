@@ -41,6 +41,10 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     @Value("${system.grading.dir:}")
     private String gradingDir;
 
+    /** 模型评估实验图目录（algorithm/evaluation/figures），通过 /evaluation/** 暴露 */
+    @Value("${system.evaluation.dir:}")
+    private String evaluationDir;
+
     public WebMvcConfiguration(TokenHandlerInterceptor tokenHandlerInterceptor,
                                SystemConfig systemConfig) {
         this.tokenHandlerInterceptor = tokenHandlerInterceptor;
@@ -76,6 +80,11 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         // 热度分级图
         registry.addResourceHandler("/grading/**")
                 .addResourceLocations(resolveDir(gradingDir, "classpath:/static/grading/"))
+                .setCacheControl(CacheControl.maxAge(Duration.ofMinutes(10)).cachePublic());
+
+        // 模型评估实验图（交叉验证 / 调参 / 学习曲线 / 重要性对照 / 残差 / 消融）
+        registry.addResourceHandler("/evaluation/**")
+                .addResourceLocations(resolveDir(evaluationDir, "classpath:/static/evaluation/"))
                 .setCacheControl(CacheControl.maxAge(Duration.ofMinutes(10)).cachePublic());
 
         // HTML 入口不缓存：Vite 每次构建会生成新的内容哈希文件名，index.html 里引用的是最新 bundle。

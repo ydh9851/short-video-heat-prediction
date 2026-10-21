@@ -29,7 +29,20 @@ const constantRoutes = [
         path: 'dashboard',
         component: () => import('@/views/dashboard/index'),
         name: 'Dashboard',
-        meta: { title: '主页', icon: 'home', affix: true }
+        meta: { title: '主页', icon: 'home', group: '项目概览', affix: true }
+      }
+    ]
+  },
+  {
+    path: '/about',
+    component: Layout,
+    name: 'AboutPage',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/about/index'),
+        name: 'AboutIndex',
+        meta: { title: '项目介绍', icon: 'guide', group: '项目概览', noCache: true }
       }
     ]
   },
@@ -46,7 +59,7 @@ const constantRoutes = [
         path: 'user/list',
         component: () => import('@/views/user/user/list'),
         name: 'UserPageList',
-        meta: { title: '用户列表', noCache: true }
+        meta: { title: '用户列表', icon: 'users', group: '系统管理', noCache: true }
       },
       {
         path: 'user/edit',
@@ -74,7 +87,7 @@ const constantRoutes = [
         path: 'admin/list',
         component: () => import('@/views/user/admin/list'),
         name: 'UserAdminPageList',
-        meta: { title: '管理员列表', noCache: true }
+        meta: { title: '管理员列表', icon: 'people', group: '系统管理', noCache: true }
       },
       {
         path: 'admin/edit',
@@ -103,7 +116,7 @@ const constantRoutes = [
         path: 'eda',
         component: () => import('@/views/analysis/edaAnalysis'),
         name: 'EdaAnalysisPage',
-        meta: { title: '特征探索分析（Python EDA）', noCache: true }
+        meta: { title: '特征探索分析', icon: 'task', group: '数据与特征', noCache: true }
       }
     ]
   },
@@ -112,7 +125,7 @@ const constantRoutes = [
     component: Layout,
     name: 'DataPage',
     meta: {
-      title: '数据管理',
+      title: '',
       icon: 'table'
     },
     children: [
@@ -120,7 +133,13 @@ const constantRoutes = [
         path: 'index',
         component: () => import('@/views/data/index'),
         name: 'DataManage',
-        meta: { title: '数据管理', noCache: true }
+        meta: { title: '数据管理', icon: 'table', group: '数据与特征', noCache: true }
+      },
+      {
+        path: 'comparison',
+        component: () => import('@/views/comparison/index'),
+        name: 'PlatformComparison',
+        meta: { title: '平台对比', icon: 'peoples', group: '数据与特征', noCache: true }
       }
     ]
   },
@@ -129,16 +148,15 @@ const constantRoutes = [
     component: Layout,
     name: 'PredictPage',
     meta: {
-      title: '热度预测',
+      title: '',
       icon: 'chart'
     },
-    alwaysShow: true,
     children: [
       {
         path: 'index',
         component: () => import('@/views/predict/index'),
         name: 'PredictIndex',
-        meta: { title: '热度预测', noCache: true }
+        meta: { title: '热度预测', icon: 'chart', group: '模型与归因', noCache: true }
       }
     ]
   },
@@ -147,16 +165,15 @@ const constantRoutes = [
     component: Layout,
     name: 'AttributionPage',
     meta: {
-      title: '归因分析',
+      title: '',
       icon: 'eye'
     },
-    alwaysShow: true,
     children: [
       {
         path: 'index',
         component: () => import('@/views/attribution/index'),
         name: 'AttributionIndex',
-        meta: { title: '归因分析（SHAP）', noCache: true }
+        meta: { title: '归因分析', icon: 'eye', group: '模型与归因', noCache: true }
       }
     ]
   },
@@ -165,58 +182,28 @@ const constantRoutes = [
     component: Layout,
     name: 'GradingPage',
     meta: {
-      title: '热度分级',
+      title: '',
       icon: 'star'
     },
-    alwaysShow: true,
     children: [
       {
         path: 'index',
         component: () => import('@/views/grading/index'),
         name: 'GradingIndex',
-        meta: { title: '热度分级', noCache: true }
+        meta: { title: '热度分级', icon: 'star', group: '模型与归因', noCache: true }
       }
     ]
   },
   {
-    path: '/message',
+    path: '/evaluation',
     component: Layout,
-    name: 'MessagePage',
-    meta: {
-      title: '消息中心',
-      icon: 'message'
-    },
-    alwaysShow: true,
+    name: 'EvaluationPage',
     children: [
       {
-        path: 'list',
-        component: () => import('@/views/message/list'),
-        name: 'MessageListPage',
-        meta: { title: '消息列表', noCache: true }
-      },
-      {
-        path: 'send',
-        component: () => import('@/views/message/send'),
-        name: 'MessageSendPage',
-        meta: { title: '消息发送', noCache: true }
-      }
-    ]
-  },
-  {
-    path: '/log',
-    component: Layout,
-    name: 'LogPage',
-    meta: {
-      title: '日志中心',
-      icon: 'log'
-    },
-    alwaysShow: true,
-    children: [
-      {
-        path: 'user/list',
-        component: () => import('@/views/log/list'),
-        name: 'LogUserPage',
-        meta: { title: '用户日志', noCache: true }
+        path: 'index',
+        component: () => import('@/views/evaluation/index'),
+        name: 'EvaluationIndex',
+        meta: { title: '模型评估', icon: 'skill', group: '模型与归因', noCache: true }
       }
     ]
   },
@@ -229,7 +216,7 @@ const constantRoutes = [
         path: 'index',
         component: () => import('@/views/profile/index'),
         name: 'Profile',
-        meta: { title: '个人简介', icon: 'user', noCache: true }
+        meta: { title: '个人中心', icon: 'user', noCache: true }
       }
     ]
   },

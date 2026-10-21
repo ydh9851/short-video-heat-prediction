@@ -1,4 +1,5 @@
 @import './variables.scss';
+@import './theme.scss';
 @import './mixin.scss';
 @import './transition.scss';
 @import './element-ui.scss';
@@ -10,11 +11,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  font-family: Helvetica Neue, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Arial, sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 label {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 html {
@@ -100,11 +102,10 @@ aside {
   background: #eef1f6;
   padding: 8px 24px;
   margin-bottom: 20px;
-  border-radius: 2px;
+  border-radius: 8px;
   display: block;
   line-height: 32px;
   font-size: 16px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   color: #2c3e50;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -119,55 +120,27 @@ aside {
   }
 }
 
-//main-container全局样式
-.app-container {
-  padding: 20px;
-}
-
+// 内容区容器（细节见 theme.scss）
 .components-container {
   margin: 30px 50px;
   position: relative;
 }
 
 .pagination-container {
-  margin-top: 30px;
+  margin-top: 22px;
 }
 
 .text-center {
-  text-align: center
-}
-
-.sub-navbar {
-  height: 50px;
-  line-height: 50px;
-  position: relative;
-  width: 100%;
-  text-align: right;
-  padding-right: 20px;
-  transition: 600ms ease position;
-  background: linear-gradient(90deg, rgba(32, 182, 249, 1) 0%, rgba(32, 182, 249, 1) 0%, rgba(33, 120, 241, 1) 100%, rgba(33, 120, 241, 1) 100%);
-
-  .subtitle {
-    font-size: 20px;
-    color: #fff;
-  }
-
-  &.draft {
-    background: #d0d0d0;
-  }
-
-  &.deleted {
-    background: #d0d0d0;
-  }
+  text-align: center;
 }
 
 .link-type,
 .link-type:focus {
-  color: #337ab7;
+  color: #6366f1;
   cursor: pointer;
 
   &:hover {
-    color: rgb(32, 160, 255);
+    color: #4f52c1;
   }
 }
 
@@ -192,83 +165,4 @@ aside {
 
 .link-left {
   margin-left: 5px;
-}
-
-.question-item-label {
-  margin-top: 10px;
-  margin-bottom: 10px !important;
-}
-
-.question-item-remove {
-  margin-left: 20px;
-}
-
-.question-item-content-input {
-  margin-left: 8px;
-  width: 60%;
-}
-
-.question-item-span {
-  vertical-align: middle;
-  font-size: 14px;
-  color: #606266;
-  font-weight: 700;
-  -webkit-box-sizing: border-box;
-  box-sizing: border-box;
-  margin-left: 10px;
-}
-
-.question-item-rate {
-  line-height: 2.5;
-}
-
-.q-title {
-  margin: 0px 5px;
-
-  p {
-    display: inline !important;
-  }
-}
-
-
-.q-content {
-  p {
-    display: inline !important;
-  }
-}
-
-.q-item-prefix {
-  margin: 5px 10px;
-}
-
-.q-item-contain {
-  display: inline-block;
-}
-
-.q-item-content {
-  margin: 5px;
-  white-space: normal;
-
-  p {
-    display: inline !important;
-  }
-}
-
-.gapfilling-span {
-  color: red;
-  padding: 0px 30px;
-  margin: 0px 5px;
-  border-bottom: 3px double red;
-}
-
-.exampaper-item-box {
-  margin-top: 20px;
-}
-
-.exampaper-item {
-  margin: 5px 0px;
-}
-
-.ueditor-p {
-  display: inline !important;
 }

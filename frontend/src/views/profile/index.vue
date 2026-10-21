@@ -1,5 +1,12 @@
 <template>
   <div class="app-container">
+    <div class="page-head">
+      <div class="page-head-main">
+        <div class="page-title">个人中心</div>
+        <div class="page-desc">查看当前登录账号的基本信息与操作时间线。</div>
+      </div>
+    </div>
+
     <div>
       <el-row :gutter="20">
 
@@ -9,7 +16,7 @@
 
         <el-col :span="18" :xs="24">
           <el-card>
-            <el-tabs active-name="timeline">
+            <el-tabs v-model="activeTab">
               <el-tab-pane label="时间线" name="timeline">
                 <timeline :userInfo="userInfo" />
               </el-tab-pane>
@@ -35,6 +42,7 @@ export default {
   name: 'Profile',
   data () {
     return {
+      activeTab: 'timeline',
       userInfo: {
         realName: '',
         phone: '',

@@ -78,13 +78,18 @@ export default {
   position: relative;
   overflow: hidden;
   width: 100%;
+  height: 40px;
 
   ::v-deep .el-scrollbar__bar {
     bottom: 0px;
   }
 
   ::v-deep .el-scrollbar__wrap {
-    height: 49px;
+    height: 40px;
+  }
+
+  ::v-deep .el-scrollbar__view {
+    height: 40px;
   }
 }
 </style>

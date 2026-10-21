@@ -81,12 +81,34 @@ def _hour_bucket(hour):
     return "晚间(18-23)"
 
 
-def _load_frames():
-    if not os.path.exists(TRAIN_CSV):
+def _load_frames(platform=None):
+    """加载训练/测试集。
+
+    platform 为 None 时，回退行为：
+      读 data/processed/train_clean.csv 和 test_clean.csv（抖音原始预切分）。
+    platform 指定时：
+      读 data/processed/<platform>_clean.csv，按 publish_time 升序前 80% 作训练，
+      后 20% 作测试。
+    """
+    if platform is None or platform == "douyin":
+        if not os.path.exists(TRAIN_CSV):
+            raise FileNotFoundError(
+                "未找到清洗数据，请先运行 algorithm/FeatureEDA/preprocess.py 生成 " + TRAIN_CSV)
+        train = pd.read_csv(TRAIN_CSV)
+        test = pd.read_csv(TEST_CSV) if os.path.exists(TEST_CSV) else train.iloc[:0].copy()
+        return train, test
+
+    platform_csv = os.path.join(PROCESSED_DIR, f"{platform}_clean.csv")
+    if not os.path.exists(platform_csv):
         raise FileNotFoundError(
-            "未找到清洗数据，请先运行 algorithm/FeatureEDA/preprocess.py 生成 " + TRAIN_CSV)
-    train = pd.read_csv(TRAIN_CSV)
-    test = pd.read_csv(TEST_CSV) if os.path.exists(TEST_CSV) else train.iloc[:0].copy()
+            f"未找到平台 {platform} 的清洗数据：{platform_csv}，请先执行 ingest.py --platform {platform}")
+
+    df = pd.read_csv(platform_csv)
+    # 按发布时间排序，前 80% 训练、后 20% 测试（时间切分更贴近真实业务时序）
+    df = df.sort_values("publish_time").reset_index(drop=True)
+    cut = int(len(df) * 0.8)
+    train = df.iloc[:cut].copy()
+    test = df.iloc[cut:].copy()
     return train, test
 
 
@@ -115,8 +137,8 @@ def _encode_frame(df, maps, modes):
     return out[FEATURE_NAMES].astype(float)
 
 
-def _prepare():
-    train, test = _load_frames()
+def _prepare(platform=None):
+    train, test = _load_frames(platform=platform)
     maps, modes = _fit_cat_maps(train)
     X_train = _encode_frame(train, maps, modes)
     y_train = train[TARGET_LOG].astype(float).values
@@ -191,13 +213,20 @@ def calc_metrics(model, X_test, y_test):
     }
 
 
-def cache_path(name):
-    return os.path.join(CACHE_DIR, "predict_%s.joblib" % name)
+def cache_path(name, platform=None):
+    """模型缓存路径。
+
+    platform 为空 / douyin 时沿用 predict_<name>.joblib（与既有缓存兼容）；
+    指定其它平台时使用 predict_<name>_<platform>.joblib，实现"一平台一模型"。
+    """
+    if platform is None or platform == "douyin":
+        return os.path.join(CACHE_DIR, "predict_%s.joblib" % name)
+    return os.path.join(CACHE_DIR, "predict_%s_%s.joblib" % (name, platform))
 
 
-def train_and_cache(name):
+def train_and_cache(name, platform=None):
     import joblib
-    X_train, y_train, X_test, y_test, meta = _prepare()
+    X_train, y_train, X_test, y_test, meta = _prepare(platform=platform)
     model = _fit(name, X_train, y_train)
     metrics_log, metrics_raw = calc_metrics(model, X_test, y_test)
     os.makedirs(CACHE_DIR, exist_ok=True)
@@ -205,16 +234,16 @@ def train_and_cache(name):
         "model": model, "metrics": metrics_log, "metrics_raw": metrics_raw,
         "feature_names": FEATURE_NAMES, "meta": meta,
     }
-    joblib.dump(bundle, cache_path(name), compress=3)
+    joblib.dump(bundle, cache_path(name, platform), compress=3)
     return metrics_log, metrics_raw
 
 
-def load_or_train(name):
+def load_or_train(name, platform=None):
     import joblib
-    path = cache_path(name)
+    path = cache_path(name, platform)
     if os.path.exists(path):
         return joblib.load(path), False
-    train_and_cache(name)
+    train_and_cache(name, platform)
     return joblib.load(path), True
 
 
