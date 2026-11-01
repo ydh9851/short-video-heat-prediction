@@ -232,7 +232,8 @@ def main():
     except BaseException as exc:  # noqa: BLE001
         if isinstance(exc, SystemExit) and exc.code == 0:
             raise
-        print(json.dumps({"error": str(exc), "trace": traceback.format_exc()}, ensure_ascii=False))
+        print(json.dumps({"error": str(exc), "trace": traceback.format_exc(),
+                          "trace_id": os.environ.get("TRACE_ID")}, ensure_ascii=False))
         sys.exit(1)
 
 

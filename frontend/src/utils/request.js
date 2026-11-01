@@ -92,13 +92,13 @@ const get = function (url, params, timeoutMs) {
   return request(false, query)
 }
 
-const form = function (url, params) {
+const form = function (url, params, timeoutMs) {
   const query = {
     baseURL: import.meta.env.VITE_APP_URL,
     url: url,
     method: 'post',
     withCredentials: true,
-    timeout: 30000,
+    timeout: timeoutMs || 30000,
     data: params,
     headers: { 'Content-Type': 'multipart/form-data', 'request-ajax': true }
   }

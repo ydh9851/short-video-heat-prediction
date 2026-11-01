@@ -60,6 +60,10 @@ TARGET_LOG = "heat_log"
 
 MODELS = ["lr", "knn", "svm", "dt", "rf", "lgbm", "xgb"]
 
+# 特征体系版本号：特征列、类别编码规则、目标变换或训练数据口径发生任何变化都必须 +1。
+# 加载缓存时校验该版本，不一致则作废重训，避免旧 joblib 静默给出错误预测。
+FEATURE_VERSION = 2
+
 
 def _stdout_reconfigure():
     """Windows 管道下统一 UTF-8 输出，Java 端按 UTF-8 解码。"""
@@ -233,16 +237,37 @@ def train_and_cache(name, platform=None):
     bundle = {
         "model": model, "metrics": metrics_log, "metrics_raw": metrics_raw,
         "feature_names": FEATURE_NAMES, "meta": meta,
+        "feature_version": FEATURE_VERSION,
     }
     joblib.dump(bundle, cache_path(name, platform), compress=3)
     return metrics_log, metrics_raw
+
+
+def bundle_compatible(bundle):
+    """缓存兼容性校验：特征版本 + 特征列顺序必须与当前代码一致，否则视为脏缓存。"""
+    if not isinstance(bundle, dict):
+        return False
+    if bundle.get("feature_version") != FEATURE_VERSION:
+        return False
+    return list(bundle.get("feature_names") or []) == FEATURE_NAMES
 
 
 def load_or_train(name, platform=None):
     import joblib
     path = cache_path(name, platform)
     if os.path.exists(path):
-        return joblib.load(path), False
+        bundle = None
+        try:
+            bundle = joblib.load(path)
+        except Exception:
+            bundle = None
+        if bundle_compatible(bundle):
+            return bundle, False
+        # 旧版本 / 特征不一致 / 文件损坏：静默作废并重训，避免用错模型作答
+        try:
+            os.remove(path)
+        except OSError:
+            pass
     train_and_cache(name, platform)
     return joblib.load(path), True
 
@@ -348,7 +373,14 @@ def main():
             for m in MODELS:
                 p = cache_path(m)
                 if os.path.exists(p):
-                    b = joblib.load(p)
+                    try:
+                        b = joblib.load(p)
+                    except Exception:
+                        b = None
+                    if not bundle_compatible(b):
+                        # 版本不符的旧缓存不计入对照表，等首次调用时自动重训
+                        models.append({"model": m, "trained": False, "stale": True})
+                        continue
                     item = {"model": m, "trained": True}
                     item.update(b.get("metrics") or {})
                     item["r2_raw"] = (b.get("metrics_raw") or {}).get("r2")
@@ -396,6 +428,7 @@ def main():
             raise
         print(json.dumps({
             "model": model_name, "error": str(exc), "trace": traceback.format_exc(),
+            "trace_id": os.environ.get("TRACE_ID"),
         }, ensure_ascii=False))
         sys.exit(1)
 

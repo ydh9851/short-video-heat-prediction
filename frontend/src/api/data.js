@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request'
+import { get, post, form } from '@/utils/request'
 
 export default {
   // 数据集注册表：各平台元信息（样本量/类别数/时间跨度/热度分位/是否已导入）
@@ -8,5 +8,10 @@ export default {
   // 样本分页预览（platform/page/size/category/keyword）
   samples: params => get('/api/data/samples', params, 120000),
   // 触发某平台原始数据导入（读取 data/raw 并归一化，耗时较长）
-  importDataset: platform => post(`/api/data/import?platform=${encodeURIComponent(platform)}`, null, 900000)
+  importDataset: platform => post(`/api/data/import?platform=${encodeURIComponent(platform)}`, null, 900000),
+  // data/raw 下已存在的原始数据文件清单
+  rawFiles: () => get('/api/data/raw-files', null, 60000),
+  // 上传原始数据文件到 data/raw（multipart，大文件放宽到 30 分钟）
+  upload: (platform, formData) =>
+    form(`/api/data/upload?platform=${encodeURIComponent(platform)}`, formData, 1800000)
 }

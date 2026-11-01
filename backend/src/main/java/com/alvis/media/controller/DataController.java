@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 数据管理接口：多平台规范化数据集的总览统计、样本预览与导入。
@@ -53,6 +54,20 @@ public class DataController extends BaseApiController {
     public RestResponse<JsonNode> importDataset(
             @RequestParam(value = "platform") String platform) {
         return RestResponse.ok(dataService.importPlatform(platform));
+    }
+
+    /** 上传原始数据文件到 data/raw（自动补平台前缀，保证导入时能被自动识别） */
+    @PostMapping("/upload")
+    public RestResponse<JsonNode> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "platform") String platform) {
+        return RestResponse.ok(dataService.upload(file, platform));
+    }
+
+    /** data/raw 下已存在的原始数据文件清单（体积、更新时间、可识别平台） */
+    @GetMapping("/raw-files")
+    public RestResponse<JsonNode> rawFiles() {
+        return RestResponse.ok(dataService.rawFiles());
     }
 
     /** 未显式传平台时用注册表默认平台，保持旧接口调用方式兼容 */

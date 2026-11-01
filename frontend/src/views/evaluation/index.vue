@@ -106,7 +106,9 @@
     </el-card>
 
     <!-- ============ 结果 ============ -->
-    <div v-loading="running" element-loading-text="实验运行中，正在调用 Python 算法引擎…" class="result-wrap">
+    <div v-loading="running"
+         :element-loading-text="'实验运行中（已 ' + elapsedSeconds + ' 秒），正在调用 Python 算法引擎…'"
+         class="result-wrap">
       <template v-if="result">
         <!-- 关键指标 -->
         <el-card shadow="never" class="block-card">
@@ -173,6 +175,9 @@ export default {
       current: 'cv',
       running: false,
       result: null,
+      // 异步任务轮询：已耗时秒数 + 轮询定时器句柄
+      elapsedSeconds: 0,
+      pollTimer: null,
       categories: ['搞笑', '美食', '音乐', '美妆', '穿搭', '舞蹈', '旅行', '宠物', '影视', '健身', '情感', '游戏', '生活', '知识'],
       weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
       platforms: [
@@ -601,13 +606,56 @@ export default {
     run () {
       this.running = true
       this.result = null
+      this.elapsedSeconds = 0
+      this.stopPolling()
       const payload = { mode: this.current, ...this.form }
-      evaluationApi.run(payload).then(re => {
-        this.result = re.response || null
+      // 异步提交：后端立即返回 taskId，实验在线程池跑，避免前端长连接干等
+      evaluationApi.submit(payload).then(re => {
+        const taskId = (re.response || {}).taskId
+        if (!taskId) {
+          this.running = false
+          this.$message.error('实验提交失败：未返回任务 ID')
+          return
+        }
+        this.pollTask(taskId)
+      }).catch(() => {
         this.running = false
-        this.$message.success('实验完成')
-      }).catch(() => { this.running = false })
+        this.$message.error('实验提交失败，请查看后端日志')
+      })
+    },
+    pollTask (taskId) {
+      const startedAt = Date.now()
+      this.pollTimer = setInterval(() => {
+        this.elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000)
+        evaluationApi.task(taskId).then(re => {
+          const task = re.response || {}
+          if (task.status === 'DONE') {
+            this.stopPolling()
+            this.running = false
+            this.result = task.result || null
+            const cost = task.elapsedMs
+              ? (task.elapsedMs / 1000).toFixed(1) + ' 秒'
+              : this.elapsedSeconds + ' 秒'
+            this.$message.success('实验完成，耗时 ' + cost)
+          } else if (task.status === 'FAILED') {
+            this.stopPolling()
+            this.running = false
+            this.$message.error('实验失败：' + (task.error || '未知错误'))
+          }
+        }).catch(() => {
+          // 单次轮询失败不打断整体流程，下一轮继续
+        })
+      }, 2000)
+    },
+    stopPolling () {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer)
+        this.pollTimer = null
+      }
     }
+  },
+  beforeDestroy () {
+    this.stopPolling()
   }
 }
 </script>

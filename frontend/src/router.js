@@ -34,6 +34,18 @@ const constantRoutes = [
     ]
   },
   {
+    path: '/screen',
+    component: Layout,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/screen/index'),
+        name: 'ScreenPage',
+        meta: { title: '数据大屏', icon: 'chart', group: '项目概览', noCache: true }
+      }
+    ]
+  },
+  {
     path: '/about',
     component: Layout,
     name: 'AboutPage',

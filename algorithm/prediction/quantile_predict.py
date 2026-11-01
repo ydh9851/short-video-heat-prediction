@@ -82,7 +82,8 @@ def train_quantile(alpha):
     # 区间覆盖率统一在主流程 coverage_report() 中评估（需要三个分位模型同时在场）
     os.makedirs(CACHE_DIR, exist_ok=True)
     joblib.dump({"model": model, "alpha": float(alpha), "meta": meta,
-                 "feature_names": P.FEATURE_NAMES},
+                 "feature_names": P.FEATURE_NAMES,
+                 "feature_version": P.FEATURE_VERSION},
                 cache_path(alpha), compress=3)
     return model, meta
 
@@ -91,8 +92,18 @@ def load_or_train(alpha):
     import joblib
     p = cache_path(alpha)
     if os.path.exists(p):
-        b = joblib.load(p)
-        return b, False
+        b = None
+        try:
+            b = joblib.load(p)
+        except Exception:
+            b = None
+        if isinstance(b, dict) and b.get("feature_version") == P.FEATURE_VERSION \
+                and list(b.get("feature_names") or []) == P.FEATURE_NAMES:
+            return b, False
+        try:
+            os.remove(p)
+        except OSError:
+            pass
     train_quantile(alpha)
     b = joblib.load(p)
     return b, True
@@ -139,16 +150,14 @@ def predict_interval(category, fans, hour, weekday, month):
 
 def coverage_report():
     """区间覆盖率：在测试集上统计真实热度落入 [P10, P90] 的比例（理想 ≈ 80%）。"""
-    import joblib
     X_train, y_train, X_test, y_test, meta = P._prepare()
     if X_test is None or not len(X_test):
         return None
     preds = {}
     for a in ALPHAS:
-        p = cache_path(a)
-        if not os.path.exists(p):
-            return None
-        preds[a] = np.expm1(joblib.load(p)["model"].predict(X_test))
+        # 统一走 load_or_train：缓存缺失或特征版本不符时会自动重训，避免静默返回 None / 用错模型
+        b, _ = load_or_train(a)
+        preds[a] = np.expm1(b["model"].predict(X_test))
     y_raw = np.expm1(y_test)
     inside = (y_raw >= preds[0.1]) & (y_raw <= preds[0.9])
     return {
@@ -198,7 +207,8 @@ def main():
     except BaseException as exc:  # noqa: BLE001
         if isinstance(exc, SystemExit) and exc.code == 0:
             raise
-        print(json.dumps({"error": str(exc), "trace": traceback.format_exc()}, ensure_ascii=False))
+        print(json.dumps({"error": str(exc), "trace": traceback.format_exc(),
+                          "trace_id": os.environ.get("TRACE_ID")}, ensure_ascii=False))
         sys.exit(1)
 
 

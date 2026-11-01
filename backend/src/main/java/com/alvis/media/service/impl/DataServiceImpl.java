@@ -8,20 +8,30 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
  * 数据管理服务实现：
@@ -62,6 +72,22 @@ public class DataServiceImpl implements DataService {
     /** 多平台导入脚本 */
     @Value("${system.python.ingestScript:../algorithm/datasets/ingest.py}")
     private String ingestScript;
+
+    /** 原始数据目录（上传落盘位置） */
+    @Value("${system.data.rawDir:../data/raw}")
+    private String rawDir;
+
+    /** 允许上传的原始数据格式（与 ingest.py 的 _read_any 保持一致） */
+    private static final List<String> RAW_EXT = List.of(".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".json");
+
+    /** 与 algorithm/datasets/ingest.py 的 RAW_PATTERNS 保持一致：上传后按关键字能被自动识别 */
+    private static final Map<String, List<String>> RAW_PATTERNS = Map.of(
+            "douyin", List.of("douyin", "抖音"),
+            "youtube", List.of("youtube", "yt_", "_yt"),
+            "tiktok", List.of("tiktok", "tt_"),
+            "bilibili", List.of("bilibili", "b站", "bili_"));
+
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final PythonCliRunner pythonCliRunner;
 
@@ -410,5 +436,117 @@ public class DataServiceImpl implements DataService {
             cache.remove(platform);
         }
         return node;
+    }
+
+    // ------------------------------------------------------------------ 原始数据文件管理
+    @Override
+    public JsonNode upload(MultipartFile file, String platform) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("上传文件为空");
+        }
+        String pf = platform == null ? "" : platform.trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED.contains(pf)) {
+            throw new IllegalArgumentException("不支持的平台：" + platform + "（可选 " + SUPPORTED + "）");
+        }
+        String original = file.getOriginalFilename() == null ? "dataset" : file.getOriginalFilename();
+        // 只取文件名，丢弃客户端可能携带的路径，防止目录穿越
+        String name = Paths.get(original).getFileName().toString();
+        String ext = "";
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) {
+            ext = name.substring(dot).toLowerCase(Locale.ROOT);
+        }
+        if (!RAW_EXT.contains(ext)) {
+            throw new IllegalArgumentException("仅支持 " + RAW_EXT + " 格式，收到：" + (ext.isEmpty() ? "无扩展名" : ext));
+        }
+        String base = name.substring(0, name.length() - ext.length())
+                .replaceAll("[^A-Za-z0-9\\u4e00-\\u9fa5._-]", "_");
+        if (base.isEmpty()) {
+            base = "dataset";
+        }
+        String lower = base.toLowerCase(Locale.ROOT);
+        boolean identifiable = RAW_PATTERNS.getOrDefault(pf, List.of(pf)).stream().anyMatch(lower::contains);
+        String targetName = identifiable ? base + ext : pf + "_" + base + ext;
+
+        Path dir = Paths.get(rawDir).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(dir);
+            Path target = dir.resolve(targetName).normalize();
+            if (!target.startsWith(dir)) {
+                throw new IllegalArgumentException("非法文件路径");
+            }
+            if (Files.exists(target)) {
+                // 同名文件不直接覆盖，追加时间戳作为新版本，避免冲掉他人已导入的数据；
+                // 注意必须基于已加过平台前缀的 targetName 派生，否则新文件会丢掉平台关键字而无法被 ingest 识别
+                String stem = targetName.substring(0, targetName.length() - ext.length());
+                String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+                target = dir.resolve(stem + "_" + stamp + ext).normalize();
+            }
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            long size = Files.size(target);
+            ObjectNode root = om.createObjectNode();
+            root.put("platform", pf);
+            root.put("file", "data/raw/" + target.getFileName());
+            root.put("sizeBytes", size);
+            root.put("sizeMB", Math.round(size / 1024.0 / 1024.0 * 100) / 100.0);
+            root.put("hint", "上传完成，点击「导入」调用算法引擎归一化该平台数据");
+            return root;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("保存上传文件失败：" + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public JsonNode rawFiles() {
+        ObjectNode root = om.createObjectNode();
+        ArrayNode list = root.putArray("list");
+        Path dir = Paths.get(rawDir).toAbsolutePath().normalize();
+        if (!Files.isDirectory(dir)) {
+            root.put("count", 0);
+            root.put("totalMB", 0);
+            return root;
+        }
+        long totalBytes = 0;
+        try (Stream<Path> stream = Files.list(dir)) {
+            for (Path path : stream.sorted().toList()) {
+                if (!Files.isRegularFile(path)) {
+                    continue;
+                }
+                String fileName = path.getFileName().toString();
+                String lower = fileName.toLowerCase(Locale.ROOT);
+                if (lower.startsWith(".") || lower.endsWith(".zip") || lower.endsWith(".rar") || lower.endsWith(".7z")) {
+                    continue;
+                }
+                long size = Files.size(path);
+                totalBytes += size;
+                ObjectNode item = list.addObject();
+                item.put("name", fileName);
+                item.put("sizeMB", Math.round(size / 1024.0 / 1024.0 * 100) / 100.0);
+                item.put("modifiedAt", Files.getLastModifiedTime(path).toInstant()
+                        .atZone(ZoneId.systemDefault()).toLocalDateTime().format(TIME_FORMAT));
+                item.put("platform", detectPlatform(lower));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("读取 data/raw 目录失败：" + e.getMessage(), e);
+        }
+        root.put("count", list.size());
+        root.put("totalMB", Math.round(totalBytes / 1024.0 / 1024.0 * 100) / 100.0);
+        return root;
+    }
+
+    /** 按 ingest.py 的关键字规则推断文件归属平台，未识别返回空串。 */
+    private String detectPlatform(String lowerName) {
+        for (Map.Entry<String, List<String>> entry : RAW_PATTERNS.entrySet()) {
+            for (String keyword : entry.getValue()) {
+                if (lowerName.contains(keyword.toLowerCase(Locale.ROOT))) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return "";
     }
 }

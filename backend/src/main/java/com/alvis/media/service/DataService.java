@@ -1,6 +1,7 @@
 package com.alvis.media.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 数据管理服务：读取各平台规范化数据集，提供数据集注册表、总览统计与样本分页预览。
@@ -21,4 +22,15 @@ public interface DataService {
 
     /** 触发某平台原始数据的导入（调用 Python ingest.py），返回导入结果 */
     JsonNode importPlatform(String platform);
+
+    /**
+     * 上传原始数据文件到 data/raw。
+     *
+     * <p>文件名会自动补上平台前缀（如 {@code youtube_xxx.csv}），保证 ingest.py 的关键字
+     * 自动识别能匹配到该文件，避免用户改名后导入失败。
+     */
+    JsonNode upload(MultipartFile file, String platform);
+
+    /** data/raw 下已存在的原始数据文件清单（含体积、更新时间、可识别的平台） */
+    JsonNode rawFiles();
 }

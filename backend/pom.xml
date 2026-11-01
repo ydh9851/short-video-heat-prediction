@@ -190,7 +190,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <skipTests>true</skipTests>
+                    <!-- 历史上为规避 src/test 残留的 JUnit4 写法而全局跳过测试；
+                         测试已迁移到 JUnit5，恢复执行。临时跳过请用 -Dmaven.test.skip=true -->
+                    <skipTests>false</skipTests>
                 </configuration>
             </plugin>
         </plugins>

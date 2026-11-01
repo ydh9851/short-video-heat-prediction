@@ -33,6 +33,44 @@
       class="import-tip"
       title="该平台数据集尚未导入：请把原始数据文件放入 data/raw 目录（文件名需含平台关键字，如 youtube/tiktok/bilibili），然后点击「导入数据集」；算法引擎会自动识别列名并归一化为统一字段。" />
 
+    <!-- ============ 原始数据文件 ============ -->
+    <el-card shadow="never" class="raw-card">
+      <div class="list-toolbar">
+        <div class="section-title">原始数据文件（data/raw）</div>
+        <div class="raw-actions">
+          <el-select v-model="uploadPlatform" size="small" style="width:120px">
+            <el-option v-for="p in uploadPlatforms" :key="p.value" :label="p.label" :value="p.value" />
+          </el-select>
+          <el-upload
+            :auto-upload="false"
+            :show-file-list="false"
+            :on-change="onFileChange"
+            accept=".csv,.tsv,.xlsx,.xls,.parquet,.json">
+            <el-button size="small">选择文件</el-button>
+          </el-upload>
+          <span class="muted file-name">{{ uploadFile ? uploadFile.name : '未选择文件' }}</span>
+          <el-button size="small" type="primary" :loading="uploading" :disabled="!uploadFile" @click="doUpload">上传</el-button>
+          <el-button size="small" :loading="loadingRaw" @click="loadRawFiles">刷新</el-button>
+        </div>
+      </div>
+      <div class="muted raw-hint">
+        支持 CSV / TSV / XLSX / Parquet / JSON；上传后自动补平台前缀落到 <code>data/raw/</code>，
+        再点顶部「导入数据集」即可完成归一化生效。
+      </div>
+      <el-table :data="rawFiles" size="small" v-loading="loadingRaw">
+        <el-table-column prop="name" label="文件名" min-width="260" show-overflow-tooltip />
+        <el-table-column label="可识别平台" width="120">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.platform ? 'success' : 'info'" effect="light">
+              {{ row.platform || '未识别' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="sizeMB" label="体积(MB)" width="110" />
+        <el-table-column prop="modifiedAt" label="更新时间" width="175" />
+      </el-table>
+    </el-card>
+
     <!-- ============ 关键指标 ============ -->
     <div class="kpi-grid" v-loading="loadingOverview">
       <div v-for="k in kpis" :key="k.label" class="kpi-card">
@@ -182,6 +220,11 @@ export default {
       loadingOverview: false,
       loadingSamples: false,
       importing: false,
+      uploading: false,
+      loadingRaw: false,
+      rawFiles: [],
+      uploadFile: null,
+      uploadPlatform: 'douyin',
       platforms: [],
       platform: 'douyin',
       ov: {},
@@ -197,6 +240,14 @@ export default {
   computed: {
     currentPlatformMeta () {
       return this.platforms.find(p => p.platform === this.platform) || {}
+    },
+    uploadPlatforms () {
+      return [
+        { value: 'douyin', label: '抖音' },
+        { value: 'youtube', label: 'YouTube' },
+        { value: 'tiktok', label: 'TikTok' },
+        { value: 'bilibili', label: '哔哩哔哩' }
+      ]
     },
     kpis () {
       const h = this.ov.heat || {}
@@ -214,6 +265,7 @@ export default {
   },
   created () {
     this.loadPlatforms()
+    this.loadRawFiles()
   },
   mounted () {
     window.addEventListener('resize', this.resizeHandler)
@@ -260,6 +312,35 @@ export default {
       this.keyword = ''
       this.loadOverview()
       this.loadSamples()
+    },
+    loadRawFiles () {
+      this.loadingRaw = true
+      dataApi.rawFiles().then(re => {
+        this.rawFiles = (re.response || {}).list || []
+        this.loadingRaw = false
+      }).catch(() => { this.loadingRaw = false })
+    },
+    onFileChange (file) {
+      this.uploadFile = file.raw || null
+    },
+    doUpload () {
+      if (!this.uploadFile) {
+        this.$message.warning('请先选择文件')
+        return
+      }
+      const fd = new FormData()
+      fd.append('file', this.uploadFile)
+      this.uploading = true
+      dataApi.upload(this.uploadPlatform, fd).then(re => {
+        const d = re.response || {}
+        this.uploading = false
+        this.uploadFile = null
+        this.$message.success(`上传完成：${d.file}（${d.sizeMB} MB）`)
+        this.loadRawFiles()
+      }).catch(() => {
+        this.uploading = false
+        this.$message.error('上传失败，请确认平台与文件格式')
+      })
     },
     doImport () {
       this.importing = true
@@ -547,6 +628,29 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---------------- 原始数据文件 ---------------- */
+.raw-card {
+  margin-bottom: 16px;
+
+  .raw-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .file-name {
+    max-width: 220px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .raw-hint {
+    margin: 4px 0 10px;
+    font-size: 12px;
+  }
 }
 
 /* ---------------- 图表 ---------------- */

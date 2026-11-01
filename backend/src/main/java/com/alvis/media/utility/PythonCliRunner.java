@@ -4,10 +4,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -47,33 +49,70 @@ public class PythonCliRunner {
         if (args != null) {
             cmd.addAll(args);
         }
-        Process p = null;
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        // 统一子进程 IO 编码与缓冲：避免中文 Windows 下 stdout 乱码、或输出滞留在缓冲区
+        Map<String, String> env = pb.environment();
+        env.put("PYTHONIOENCODING", "utf-8");
+        env.put("PYTHONUNBUFFERED", "1");
+        // 透传 traceId：算法侧异常输出会带上它，便于与 Java 日志逐条对齐
+        String traceId = TraceContext.current();
+        if (traceId != null) {
+            env.put("TRACE_ID", traceId);
+        }
+
+        Process p;
         try {
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.redirectErrorStream(true);
             p = pb.start();
-            StringBuilder sb = new StringBuilder();
+        } catch (IOException e) {
+            throw new RuntimeException("启动 Python 进程失败: " + e.getMessage(), e);
+        }
+
+        // 读流必须与等待并行：若先读到 EOF 再 waitFor，进程卡住时 readLine 会永久阻塞，超时形同虚设
+        StringBuffer sb = new StringBuffer();
+        Thread reader = new Thread(() -> {
             try (BufferedReader br = new BufferedReader(
                     new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = br.readLine()) != null) {
                     sb.append(line).append('\n');
                 }
+            } catch (IOException ignored) {
+                // 进程被强制终止时流会中断，属预期情况
             }
-            boolean finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-            if (!finished) {
-                p.destroyForcibly();
-                throw new RuntimeException("Python 脚本执行超时（" + timeoutSeconds + "s）: " + scriptPath);
-            }
-            if (p.exitValue() != 0) {
-                throw new RuntimeException("python exit " + p.exitValue() + ": " + sb);
-            }
-            return sb.toString().trim();
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException("调用 Python 脚本失败: " + e.getMessage(), e);
+        }, "py-cli-reader");
+        reader.setDaemon(true);
+        reader.start();
+
+        boolean finished;
+        try {
+            finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            p.destroyForcibly();
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Python 脚本执行被中断: " + scriptPath, e);
         }
+        if (!finished) {
+            p.destroyForcibly();
+            try {
+                p.waitFor(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException("Python 脚本执行超时（" + timeoutSeconds + "s），已强制终止: "
+                    + scriptPath + (sb.length() > 0 ? "，超时前输出: " + sb : ""));
+        }
+        try {
+            // 进程已退出，流必然 EOF；给读线程一点时间收尾残余输出
+            reader.join(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        String out = sb.toString().trim();
+        if (p.exitValue() != 0) {
+            throw new RuntimeException("python exit " + p.exitValue() + ": " + out);
+        }
+        return out;
     }
 
     /** 取输出中最后一行非空文本（Python 输出可能混入告警行）。 */

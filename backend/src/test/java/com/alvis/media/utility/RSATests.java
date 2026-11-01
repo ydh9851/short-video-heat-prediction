@@ -1,27 +1,25 @@
 package com.alvis.media.utility;
 
-import com.alvis.media.ExamApplicationTests;
+import com.alvis.media.MediaApplication;
 import com.alvis.media.configuration.property.SystemConfig;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest(classes = ExamApplicationTests.class)
-public class RSATests {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/** 登录密码 RSA 加解密往返测试（Spring Boot 3.5 只带 JUnit5，原 JUnit4 写法无法编译）。 */
+@SpringBootTest(classes = MediaApplication.class)
+class RSATests {
 
     @Autowired
     private SystemConfig systemConfig;
 
     @Test
-    public void rsaTest() {
+    void rsaEncodeDecodeRoundTrip() {
         String pwd = "123456";
-        String encodeStr = RsaUtil.rsaEncode(systemConfig.getPwdKey().getPublicKey(), pwd);
-        String decodeStr = RsaUtil.rsaDecode(systemConfig.getPwdKey().getPrivateKey(), encodeStr);
-        Assert.assertEquals(pwd, decodeStr);
+        String encoded = RsaUtil.rsaEncode(systemConfig.getPwdKey().getPublicKey(), pwd);
+        String decoded = RsaUtil.rsaDecode(systemConfig.getPwdKey().getPrivateKey(), encoded);
+        assertEquals(pwd, decoded);
     }
-
 }
