@@ -127,7 +127,7 @@
                   </span>
                 </div>
                 <div v-if="interval" ref="intervalChart" class="interval-chart" />
-                <el-empty v-else description="区间模型加载中…" :image-size="60" />
+                <app-empty v-else compact title="区间模型加载中…" description="正在计算 LightGBM 分位数回归的 P10 / P50 / P90" />
                 <div v-if="interval" class="interval-legend">
                   <span><i class="dot p10" />P10 保守 {{ formatNum(interval.interval.p10) }}</span>
                   <span><i class="dot p50" />P50 中性 {{ formatNum(interval.interval.p50) }}</span>
@@ -172,15 +172,20 @@
                     代价是区间更宽——这是「保证优先」而非「宽度优先」的取舍。
                   </div>
                 </div>
-                <el-empty v-else description="点击「计算保形区间」，用保形法给出带覆盖保证的区间" :image-size="50" />
+                <app-empty
+                  v-else
+                  compact
+                  title="保形区间尚未计算"
+                  description="点击「计算保形区间」，用 Split Conformal + Mondrian 给出带覆盖保证的 90% 区间"
+                />
               </div>
             </template>
 
-            <el-empty v-else description="在左侧填写参数后点击「开始预测热度」" :image-size="110">
-              <div class="empty-hint">
-                预测结果将包含：热度值 · 热度等级 · 模型指标 ·<br />P10/P50/P90 三档预测区间
-              </div>
-            </el-empty>
+            <app-empty
+              v-else
+              title="还没有预测结果"
+              description="在左侧填写参数后点击「开始预测热度」，结果将包含：热度值 · 热度等级 · 模型指标 · P10/P50/P90 预测区间 · 90% 保形区间"
+            />
           </div>
         </el-col>
       </el-row>
@@ -342,6 +347,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 import predictApi from '@/api/predict'
 import evaluationApi from '@/api/evaluation'
+import AppEmpty from '@/components/AppEmpty'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
@@ -349,6 +355,7 @@ echarts.use([BarChart, ScatterChart, GridComponent, TooltipComponent, LegendComp
 
 export default {
   name: 'PredictIndex',
+  components: { AppEmpty },
   data () {
     return {
       loading: false,

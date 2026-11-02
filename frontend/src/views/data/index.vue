@@ -276,7 +276,11 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="没有符合条件的样本，试试调整筛选条件" :image-size="80" />
+          <app-empty
+                compact
+                title="没有符合条件的样本"
+                description="试试调整筛选条件，或切换到其它平台查看"
+              />
         </template>
       </el-table>
 
@@ -303,6 +307,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 import dataApi from '@/api/data'
 import modelApi from '@/api/model'
+import AppEmpty from '@/components/AppEmpty'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, GraphicComponent, CanvasRenderer])
 
@@ -310,6 +315,7 @@ const PALETTE = ['#6366f1', '#8b5cf6', '#a855f7', '#38bdf8', '#22d3ee', '#34d399
 
 export default {
   name: 'DataManage',
+  components: { AppEmpty },
   data () {
     return {
       loadingOverview: false,

@@ -25,7 +25,10 @@
     </section>
 
     <!-- ============ KPI ============ -->
-    <div class="stat-grid" v-loading="loadingOverview">
+    <div class="stat-grid">
+      <template v-if="loadingOverview && !kpis.length">
+        <app-skeleton v-for="i in 4" :key="'sk-kpi-' + i" type="kpi" :rows="1" class="stat-skeleton" />
+      </template>
       <div v-for="k in kpis" :key="k.label" class="stat-card">
         <div class="stat-icon" :class="'tone-' + k.tone">
           <svg-icon :icon-class="k.icon" />
@@ -77,7 +80,12 @@
               <span class="exp-name">{{ e.name }}</span>
               <span class="exp-tag">{{ e.tag }}</span>
             </div>
-            <el-empty v-if="!modes.length" description="实验元信息加载中…" :image-size="60" />
+            <app-empty
+            v-if="!modes.length"
+            compact
+            title="实验元信息加载中…"
+            description="正在从后端读取 17 类可复现实验的定义"
+          />
           </div>
         </div>
       </div>
@@ -146,7 +154,11 @@
             </el-table-column>
             <el-table-column prop="createTime" label="时间" width="170" />
             <template #empty>
-              <el-empty description="暂无预测记录，去「热度预测」试试" :image-size="72" />
+              <app-empty
+                compact
+                title="暂无预测记录"
+                description="到「热度预测」页跑一条预测，这里会显示最近的结果与热度等级"
+              />
             </template>
           </el-table>
         </el-card>
@@ -162,6 +174,8 @@ import { GridComponent, TooltipComponent, LegendComponent, GraphicComponent } fr
 import { CanvasRenderer } from 'echarts/renderers'
 
 import CountTo from '@/components/CountTo'
+import AppSkeleton from '@/components/AppSkeleton'
+import AppEmpty from '@/components/AppEmpty'
 import dataApi from '@/api/data'
 import predictApi from '@/api/predict'
 import evaluationApi from '@/api/evaluation'
@@ -172,7 +186,7 @@ const PALETTE = ['#6366f1', '#8b5cf6', '#a855f7', '#38bdf8', '#22d3ee', '#34d399
 
 export default {
   name: 'Dashboard',
-  components: { CountTo },
+  components: { CountTo, AppSkeleton, AppEmpty },
   data () {
     return {
       loadingOverview: false,

@@ -70,7 +70,12 @@
             <p class="catalog-desc">{{ m.description }}</p>
           </div>
         </div>
-        <el-empty v-if="!filteredGroups.length" description="没有匹配的实验" :image-size="60" />
+        <app-empty
+          v-if="!filteredGroups.length"
+          compact
+          title="没有匹配的实验"
+          description="换个关键词，或点「全部」查看 17 类实验"
+        />
       </el-card>
 
       <div class="exp-main">
@@ -256,7 +261,15 @@
         </el-card>
       </template>
 
-      <el-empty v-else description="从左侧实验目录选一个实验，点击「开始实验」即可得到结论与图表" />
+      <app-empty
+        v-else
+        title="还没有运行实验"
+        description="从左侧实验目录选一个实验，点击「开始实验」即可得到「一句话结论 + 关键指标 + 图表 + 明细表」"
+      >
+        <el-button type="primary" plain size="small" @click="runRecommended">
+          按推荐路径跑第一个
+        </el-button>
+      </app-empty>
         </div>
       </div>
     </div>
@@ -300,7 +313,11 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="还没有实验记录，跑一次实验就会自动记账" :image-size="70" />
+          <app-empty
+            compact
+            title="还没有实验记录"
+            description="跑一次实验就会自动记账：参数、耗时、traceId 与结果都会写入台账，可随时回看"
+          />
         </template>
       </el-table>
 
@@ -318,6 +335,8 @@
 
 <script>
 import evaluationApi from '@/api/evaluation'
+import AppSkeleton from '@/components/AppSkeleton'
+import AppEmpty from '@/components/AppEmpty'
 
 const MODE_FIGURE_GROUP = {
   counterfactual: 'attr',
@@ -343,6 +362,7 @@ const DEMO_STEPS = [
 
 export default {
   name: 'EvaluationIndex',
+  components: { AppSkeleton, AppEmpty },
   data () {
     return {
       modes: [],
@@ -1120,6 +1140,13 @@ export default {
     selectModeByKey (mode) {
       const m = this.modes.find(x => x.mode === mode)
       if (m) this.selectMode(m)
+    },
+    /** 空态里的「按推荐路径跑第一个」：选中第 1 步并直接开跑 */
+    runRecommended () {
+      const first = DEMO_STEPS[0]
+      if (!first) return
+      this.selectModeByKey(first.mode)
+      this.run()
     },
     selectMode (m) {
       this.current = m.mode
