@@ -7,6 +7,29 @@
 
 ---
 
+## 界面预览
+
+| 主页 · 实验结论速览 | 项目介绍 · 结论如何被证明 |
+|---|---|
+| ![主页](./docs/screenshots/01-dashboard.png) | ![项目介绍](./docs/screenshots/02b-about-proof.png) |
+
+| 实验中心 · 17 类可复现实验 | 热度预测 · 分位数区间 vs 保形区间 |
+|---|---|
+| ![实验中心](./docs/screenshots/03-evaluation.png) | ![热度预测](./docs/screenshots/06-predict.png) |
+
+| 模型治理 · 版本 / 影子 / 引擎状态 | 归因分析 · 解释可信度徽章 |
+|---|---|
+| ![模型治理](./docs/screenshots/04-model.png) | ![归因分析](./docs/screenshots/07-attribution.png) |
+
+| 数据管理 · 8 项质量门禁 | 数据大屏 |
+|---|---|
+| ![数据管理](./docs/screenshots/05-data.png) | ![数据大屏](./docs/screenshots/08-screen.png) |
+
+> 界面上的每个数字都来自可复现的实验脚本，可在「实验中心」一键重跑；
+> 页面右上角的 `?demo=1` 进入答辩演示模式（折叠侧栏、隐藏无关元素）。
+
+---
+
 ## 功能总览
 
 | 模块 | 说明 |
