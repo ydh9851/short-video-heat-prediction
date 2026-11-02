@@ -46,6 +46,8 @@ public class RsaUtil {
 
     public static String rsaDecode(String privateCertificate, String text) {
         try {
+            // 只记录密钥指纹，不记录密钥本身：便于排查"配置与数据是否同一密钥对"
+            logger.debug("rsaDecode 使用私钥指纹={}", fingerprint(privateCertificate));
             byte[] privateBytes = baseStrToByte(privateCertificate);
             PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateBytes);
             KeyFactory keyFactory = KeyFactory.getInstance(ALGORITHM);
@@ -69,6 +71,27 @@ public class RsaUtil {
      * @param str str
      * @return byte[]
      */
+    /**
+     * 计算密钥字符串的 SHA-256 指纹（前 8 位十六进制）。
+     * 用于日志中确认"当前使用的密钥"是哪一把，而不泄露密钥内容。
+     */
+    private static String fingerprint(String key) {
+        if (key == null || key.trim().isEmpty()) {
+            return "empty";
+        }
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(key.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) {
+                sb.append(String.format("%02x", digest[i]));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
     private static byte[] baseStrToByte(String str) {
         return Base64.getDecoder().decode(str);
     }

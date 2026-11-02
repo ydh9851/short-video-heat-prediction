@@ -58,11 +58,15 @@ system:
     - /api/student/user/register
     - /api/admin/video/**
   pwdKey:
-    publicKey: MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQClwwxhJKwStDnu7c0yCRkwTW2VKuLWwyVtFC6Zx9bYdF1qwqSP26CkDwaF6GHayIvv9b8BHlAaQH4SLIPzir062yzNukqspmthUw4gPJhbx1AQrWRoQJSv3/1Sk+tWyJRHXSiCZJZ3216LDhtx42LQ0HItDP8U9BLtsxA+5LEZzQIDAQAB
-    privateKey: MIICeAIBADANBgkqhkiG9w0BAQEFAASCAmIwggJeAgEAAoGBAKXDDGEkrBK0Oe7tzTIJGTBNbZUq4tbDJW0ULpnH1th0XWrCpI/boKQPBoXoYdrIi+/1vwEeUBpAfhIsg/OKvTrbLM26Sqyma2FTDiA8mFvHUBCtZGhAlK/f/VKT61bIlEddKIJklnfbXosOG3HjYtDQci0M/xT0Eu2zED7ksRnNAgMBAAECgYEAlCuz5yn2volnt9HNuEo1v92WdN5vAnZSAB0oQsJFpBrwXjw7CXTTNZNQy2YcAot9uzO6Vu+Xvr+jce9ky9BasM7ehz0gnwJWAO79IqUnmu3RRq7HllDwp72qysXIypJZCF4HX5jAzUGlNzlTSUb1H4LtavKc6a//YqPfQ0jTLsECQQDZuGKGAYq6rBCX0+T8qlQpCPc41wsl4Gi9lLD21ks9PMx44JdhsUrqLWItZiGynDzq1LJ3M1hr3gbSsPQcI9HJAkEAwugDFCiRLOqOBRRGlYbzgGdmXbR4SrMNIpcFTFhU+MsEqaMueVPiNtRSIK6W8pS28ZN0aiZDTBAT84fOIENp5QJBAJaVgQ9OYbVa7N8WH3riE/ONz+/wTDWWUNtOzFbtQHzKYGH6dLmM9lOhsBXWXdg7V6bUFdt8F9wDZJS07yHHZIECQG4rHrJiS80Lt8L/NvaGFVVbHO2SePwgQShwHLqOo1kNyFDqv/YsiA1d7h4zEXeEv/PE2WS2xAtWezCIbualtFECQQDPUkYhs3vZoZgsltdeFnv/WoXaXNRIzunMTmksIlh8JP7C1xQHrwdCpUkffgSVphxGJGHkxooMpki7oTC1Mdjx
+    # RSA 密钥对用于密码的可逆加解密（存储侧）。私钥一旦入库即等于所有密码可被还原，
+    # 因此私钥不随仓库分发：请执行 python tools/gen_rsa_keys.py 生成并写入本地
+    # application-local.yml（该文件已被 .gitignore 忽略），或用环境变量注入。
+    publicKey: ${RSA_PUBLIC_KEY:}
+    privateKey: ${RSA_PRIVATE_KEY:}
   wx:
-    appid: wx143688bee37bad34
-    secret: 320e54e556d5722275b75fc3bba6177b
+    # 微信小程序凭据（模板遗留，本项目未使用小程序端）；如需启用请用环境变量注入
+    appid: ${WX_APPID:}
+    secret: ${WX_SECRET:}
     token-to-live: 12h   #token 过期时间
     security-ignore-urls:
       - /api/wx/student/auth/bind
@@ -80,6 +84,11 @@ pagehelper:
 
 #mybatis datasource default HikariPool
 spring:
+  # 本地私有配置（RSA 密钥对）不入库，由 tools/gen_rsa_keys.py 生成到
+  # backend/src/main/resources/application-local.yml；文件不存在时静默跳过。
+  config:
+    import: "optional:classpath:application-local.yml"
+
   servlet:
     multipart:
       # 文件最大限制

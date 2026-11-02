@@ -1,15 +1,12 @@
-#     买源码就到 《奇趣资源优选》 
-#     网址：https://shop379896684.taobao.com   
-#     更多优质源码，请访问：http://www.qiquCode.com
-#     加微信获取最新源码信息：kofcheng201
-logging:
-  path: /usr/log/exam/
-
+# 测试环境配置模板（凭据同样走环境变量，不入库）
 spring:
   redis:
-    host: 192.168.0.96
+    host: ${REDIS_HOST:localhost}
   datasource:
-    url: jdbc:mysql://192.168.0.69:3306/video_mangage_db?useSSL=false&useUnicode=true&serverTimezone=UTC&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&allowPublicKeyRetrieval=true&allowMultiQueries=true
-    username: root
-    password: 123456
+    url: ${DB_URL:jdbc:mysql://localhost:3306/short_video_heat_db?useSSL=false&useUnicode=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&allowPublicKeyRetrieval=true&allowMultiQueries=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+logging:
+  path: ${LOG_PATH:./log/}

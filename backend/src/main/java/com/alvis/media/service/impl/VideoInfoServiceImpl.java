@@ -137,8 +137,7 @@ public class VideoInfoServiceImpl extends BaseServiceImpl <VideoInfo> implements
 
     @Override
     public int insertVideoPlay(String realUrl, Integer userId) {
-        //TODO
-        //step1 组装数据
+        // step1 组装数据：按播放地址定位视频，再累加该用户对该视频的播放次数
         VideoPlay videoPlay = new VideoPlay();
         videoPlay.setUserId(userId);
         //根据user_url获取videoId，

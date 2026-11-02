@@ -84,7 +84,8 @@
 | 长任务调度 | 分钟级实验走独立线程池（`EvaluationTaskConfig`），任务状态存 Redis，前端 `/submit` + `/task/{id}` 轮询，不再占用 HTTP 长连接 |
 | 实验治理 | 实验完成/失败自动追加 `data/logs/experiment_runs.jsonl`（MLflow Tracking 的 run 概念），`/api/evaluation/runs` 可回看历史，一条记录对齐参数、耗时、traceId 与结果 |
 | 限流与指标 | `/api/predict` 等昂贵接口按 IP 令牌桶限流（默认 10 QPS / 突发 20，超限返回 429 带 traceId）；Micrometer 指标经 `/actuator/prometheus` 暴露（`predict_latency_seconds{source=engine|cli}`、`predict_requests_total`、`predict_engine_fallback`） |
-| 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + 后端测试 + 前端构建三阶段 |
+| 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + **算法单元测试** + 后端测试 + 前端构建四阶段 |
+| 凭据管理 | RSA 私钥与第三方凭据**一律不入库**：由 `tools/gen_rsa_keys.py` 生成到被忽略的 `application-local.yml`，或用 `RSA_PUBLIC_KEY` / `RSA_PRIVATE_KEY` 环境变量注入；数据库口令同样走环境变量 |
 | 前端体验 | **实验中心**（17 类实验分组目录 + 推荐演示路径 + 结论卡 + 台账对比）、**模型治理页**（版本阶段 / 影子偏差 / 引擎状态）、首页关键指标标注来源实验、数据质量首屏徽章速览 |
 | 答辩演示 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
 | 错误可追溯 | 前端统一错误提示携带后端 `X-Trace-Id`，出错时凭 traceId 直接在后端日志定位；业务错误与网络错误分别处理 |
@@ -182,7 +183,11 @@ setup_venv.cmd
 :: 2. 初始化数据库（MySQL 8.0 已运行后执行一次）
 mysql -u root -p < sql/short_video_heat_db.sql
 
-:: 3. 后端 + 前端 + 重启
+:: 3. 生成登录用的 RSA 密钥对（首次运行必须执行一次）
+::    结果写入 backend/src/main/resources/application-local.yml（已被 .gitignore 忽略）
+.venv\Scripts\python.exe tools\gen_rsa_keys.py
+
+:: 4. 后端 + 前端 + 重启
 restart_backend.cmd
 ```
 
@@ -190,6 +195,29 @@ restart_backend.cmd
 
 - 后台首页：http://localhost:8000/admin
 - 默认账号：`admin` / 密码 `123456`
+
+> **关于登录密钥**：登录链路用 RSA 对数据库中的密码做加解密，因此需要一对密钥。
+> 私钥**不入库**（公开仓库里的私钥等于所有密码可被还原），
+> 由 `tools/gen_rsa_keys.py` 在本地生成并写入 `application-local.yml`，
+> 也可用环境变量 `RSA_PUBLIC_KEY` / `RSA_PRIVATE_KEY` 注入。
+> 若忘记密码或更换密钥，可用 `tools/reset_user_password.py --user admin --password 123456` 重置。
+>
+> ⚠️ 修改 `t_user` 表后必须清理 Redis 中的 `User::*` 缓存，否则登录仍会读到旧密文
+> （表现为"密码正确却提示用户名或密码错误"）。迁移脚本 `tools/reencrypt_user_passwords.py` 已自动处理。
+
+### 测试
+
+```batch
+:: 后端单元与契约测试（18 个用例）
+cd backend && mvn test
+
+:: 算法侧单元测试（47 个用例，无需数据集，秒级完成）
+.venv\Scripts\python.exe -m pytest algorithm/tests -q
+```
+
+算法侧测试覆盖保形预测的有限样本修正与区间构造、PSI 漂移度量、解释质量三指标
+（Kendall τ / Spearman / Jaccard）、时段分桶与热度分级阈值、ISO 8601 时长解析，
+断言均以数学定义为基准，而非仅验证"能跑通"。
 
 ### 手动构建（可选）
 
