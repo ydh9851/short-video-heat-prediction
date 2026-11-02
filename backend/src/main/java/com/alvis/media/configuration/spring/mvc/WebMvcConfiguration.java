@@ -45,6 +45,10 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     @Value("${system.evaluation.dir:}")
     private String evaluationDir;
 
+    /** 归因报告输出目录（data/reports），通过 /reports/** 供前端直接打开 HTML */
+    @Value("${system.reports.dir:}")
+    private String reportsDir;
+
     public WebMvcConfiguration(TokenHandlerInterceptor tokenHandlerInterceptor,
                                SystemConfig systemConfig) {
         this.tokenHandlerInterceptor = tokenHandlerInterceptor;
@@ -86,6 +90,11 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         registry.addResourceHandler("/evaluation/**")
                 .addResourceLocations(resolveDir(evaluationDir, "classpath:/static/evaluation/"))
                 .setCacheControl(CacheControl.maxAge(Duration.ofMinutes(10)).cachePublic());
+
+        // 归因报告（自包含 HTML）：每次生成都是新文件名，故不缓存
+        registry.addResourceHandler("/reports/**")
+                .addResourceLocations(resolveDir(reportsDir, "file:./data/reports/"))
+                .setCacheControl(CacheControl.noStore());
 
         // HTML 入口不缓存：Vite 每次构建会生成新的内容哈希文件名，index.html 里引用的是最新 bundle。
         // 若 index.html 被长缓存，浏览器会拿到旧引用，指向已删除的旧 bundle（请求返回 500），导致白屏。

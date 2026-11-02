@@ -16,4 +16,10 @@ public interface AttributionService {
 
     /** 部分依赖图：某特征变化对平均热度的影响 */
     JsonNode pdp(String feature);
+
+    /**
+     * 生成自包含的归因报告（HTML）：预测值 + 区间 + 单条 SHAP + 全局贡献 + 反事实建议。
+     * 返回文件相对路径与可访问 URL。
+     */
+    JsonNode report(PredictRequestVM req);
 }

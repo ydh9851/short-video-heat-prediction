@@ -30,6 +30,9 @@ public class AttributionServiceImpl implements AttributionService {
     @Value("${system.python.attributionScript:}")
     private String attributionScript;
 
+    @Value("${system.python.reportScript:}")
+    private String reportScript;
+
     public AttributionServiceImpl(PythonCliRunner runner, StringRedisTemplate redisTemplate) {
         this.runner = runner;
         this.redisTemplate = redisTemplate;
@@ -93,8 +96,38 @@ public class AttributionServiceImpl implements AttributionService {
         return node;
     }
 
+    @Override
+    public JsonNode report(PredictRequestVM req) {
+        if (req.getVideoCategory() == null || req.getVideoCategory().trim().isEmpty()) {
+            req.setVideoCategory("美食");
+        }
+        if (req.getAuthorFans() == null || req.getAuthorFans() < 0) {
+            req.setAuthorFans(0.0);
+        }
+        if (req.getPublishHour() == null) req.setPublishHour(20);
+        if (req.getPublishWeekday() == null) req.setPublishWeekday(5);
+        if (req.getPublishMonth() == null) req.setPublishMonth(6);
+
+        if (reportScript == null || reportScript.trim().isEmpty()) {
+            throw new IllegalStateException("未配置归因报告脚本（system.python.reportScript）");
+        }
+        List<String> args = new ArrayList<>();
+        args.addAll(Arrays.asList("--category",
+                URLEncoder.encode(req.getVideoCategory().trim(), StandardCharsets.UTF_8)));
+        args.addAll(Arrays.asList("--fans", String.valueOf(req.getAuthorFans())));
+        args.addAll(Arrays.asList("--hour", String.valueOf(req.getPublishHour())));
+        args.addAll(Arrays.asList("--weekday", String.valueOf(req.getPublishWeekday())));
+        args.addAll(Arrays.asList("--month", String.valueOf(req.getPublishMonth())));
+        // 报告每次都落新文件，不做缓存
+        return execWith(reportScript, args);
+    }
+
     private JsonNode exec(List<String> args) {
-        String out = runner.run(attributionScript, args);
+        return execWith(attributionScript, args);
+    }
+
+    private JsonNode execWith(String script, List<String> args) {
+        String out = runner.run(script, args);
         try {
             JsonNode node = om.readTree(PythonCliRunner.lastJsonLine(out));
             if (node.hasNonNull("error")) {

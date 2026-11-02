@@ -35,4 +35,13 @@ public class AttributionController extends BaseApiController {
     public RestResponse<JsonNode> pdp(@RequestParam(value = "feature", required = false) String feature) {
         return RestResponse.ok(attributionService.pdp(feature));
     }
+
+    /**
+     * 生成自包含的归因报告（HTML）：预测值 + 区间 + 单条 SHAP + 全局贡献 + 反事实建议。
+     * 返回 {file, url, sizeKB}，前端用 url 直接打开 / 下载。
+     */
+    @PostMapping("/report")
+    public RestResponse<JsonNode> report(@RequestBody PredictRequestVM req) {
+        return RestResponse.ok(attributionService.report(req));
+    }
 }

@@ -128,7 +128,9 @@
           <el-col :xs="24" :lg="13">
             <div class="fig-title">
               运营建议（归因 → 决策）
-              <el-button size="small" style="float:right" @click="exportReport">导出报告</el-button>
+              <el-button size="small" style="float:right" @click="exportReport">导出 CSV</el-button>
+              <el-button size="small" type="primary" style="float:right;margin-right:8px"
+                         :loading="reportLoading" @click="doReport">生成报告(HTML)</el-button>
             </div>
             <ul class="advice-list">
               <li v-for="(a, i) in explain.advice" :key="i">{{ a }}</li>
@@ -272,6 +274,7 @@ export default {
       },
       explain: null,
       explainLoading: false,
+    reportLoading: false,
       cf: null,
       cfLoading: false,
       pdpFeature: 'author_fans_log',
@@ -419,6 +422,22 @@ export default {
         this.pdp = re.response || null
         this.pdpLoading = false
       }).catch(() => { this.pdpLoading = false })
+    },
+    doReport () {
+      this.reportLoading = true
+      attributionApi.report({ ...this.form }).then(re => {
+        this.reportLoading = false
+        const d = re.response || {}
+        if (d.url) {
+          window.open(d.url, '_blank')
+          this.$message.success('报告已生成（' + d.sizeKB + ' KB），已在新标签页打开')
+        } else {
+          this.$message.error(d.error || '报告生成失败')
+        }
+      }).catch(() => {
+        this.reportLoading = false
+        this.$message.error('报告生成失败，请查看后端日志')
+      })
     },
     exportReport () {
       const e = this.explain
