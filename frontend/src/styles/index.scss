@@ -166,3 +166,21 @@ aside {
 .link-left {
   margin-left: 5px;
 }
+
+/* ============================================================
+ * 答辩演示模式（?demo=1）：收起与结论无关的界面元素
+ * ============================================================ */
+html.demo-mode {
+  #tags-view-container {
+    display: none !important;
+  }
+
+  .app-wrapper .main-container {
+    min-height: 100vh;
+  }
+
+  // 侧栏折叠为图标条后，把内容区的上边距收掉，标题直接顶到导航栏下方
+  .app-wrapper.hasTagsView .main-container {
+    padding-top: 0;
+  }
+}

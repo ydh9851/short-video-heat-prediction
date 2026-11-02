@@ -10,6 +10,7 @@ import 'virtual:svg-icons-register'
 import SvgIcon from '@/components/SvgIcon'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
+import { initDemoMode } from '@/utils/demo'
 
 const app = createApp(App)
 
@@ -18,6 +19,9 @@ app.use(ElementPlus, {
 })
 app.use(store)
 app.use(router)
+
+// 答辩演示模式：地址后加 ?demo=1 生效（折叠侧栏、隐藏标签栏）
+initDemoMode(store)
 
 // 全局注册 svg-icon 组件（旧代码里通过 Vue.component 注册）
 app.component('svg-icon', SvgIcon)
