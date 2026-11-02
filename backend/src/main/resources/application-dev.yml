@@ -28,6 +28,23 @@ system:
     evaluationScript: '../algorithm/evaluation/model_evaluation.py'
     # 预测区间（LightGBM 分位数回归 P10/P50/P90）
     quantileScript: '../algorithm/prediction/quantile_predict.py'
+    # 预测区间（保形预测，带有限样本覆盖保证 + Mondrian 条件覆盖）
+    conformalScript: '../algorithm/prediction/conformal_predict.py'
+    # SHAP 解释质量评估（紧凑性 / 一致性 / 稳定性）
+    explanationQualityScript: '../algorithm/attribution/explanation_quality.py'
+    # 特征增量实验（base / +content / +text 三组特征集对照）
+    featureEnrichmentScript: '../algorithm/evaluation/feature_enrichment.py'
+    # 两阶段预测（先验 vs 发布后第 1 天 / 第 1、3 天信号）
+    twoStageScript: '../algorithm/evaluation/two_stage.py'
+    # 常驻推理服务（FastAPI sidecar）：留空则始终走 CLI；不可用时自动熔断并降级回 CLI
+    serviceUrl: 'http://127.0.0.1:8100'
+    serviceTimeoutMs: 5000
+    # 归因报告生成脚本（自包含 HTML）
+    reportScript: '../algorithm/attribution/build_report.py'
+    # 反事实稳健性检验（安慰剂 / 子集重估 / 模型替换）
+    refutationScript: '../algorithm/attribution/refutation.py'
+    # 模型注册表同步（版本 + 阶段）
+    registryScript: '../algorithm/prediction/registry.py'
     # 热度增长曲线预测（TikTok 第 0~30 天真实累计快照）
     growthScript: '../algorithm/prediction/growth_predict.py'
     # 多平台数据集导入器（把 data/raw 下各平台原始文件归一化为统一 schema）
@@ -38,6 +55,9 @@ system:
   attribution:
     # 归因分析图输出目录，通过 /attribution/** 暴露给前端「归因分析」页面
     dir: '../algorithm/attribution/figures'
+  reports:
+    # 归因报告（自包含 HTML）输出目录，通过 /reports/** 供前端直接打开
+    dir: '../data/reports'
   grading:
     # 热度分级图输出目录，通过 /grading/** 暴露给前端「热度分级」页面
     dir: '../algorithm/grading/figures'
@@ -51,3 +71,17 @@ system:
     processedDir: '../data/processed'
     # 多平台数据集注册表（记录各平台样本量、类别数、时间跨度等信息）
     registry: '../data/processed/dataset_registry.json'
+    # 运行期日志目录（实验台账 experiment_runs.jsonl / 影子打分 shadow_predictions.jsonl）
+    logDir: '../data/logs'
+    # 模型注册表文件（版本 + 阶段）
+    registryFile: '../data/models/model_registry.json'
+  model:
+    # 影子模式：线上模型照常返回，候选模型并行打分并记录差异（不改变返回结果）
+    shadowEnabled: true
+    shadowModel: 'rf'
+  api:
+    rateLimit:
+      # 按客户端 IP 的令牌桶限流，只作用于会触发 Python 计算的昂贵接口
+      enabled: true
+      qps: 10
+      burst: 20

@@ -5,6 +5,7 @@ import com.alvis.media.base.RestResponse;
 import com.alvis.media.domain.User;
 import com.alvis.media.service.HeatLogService;
 import com.alvis.media.service.PredictService;
+import com.alvis.media.utility.PythonEngineClient;
 import com.alvis.media.viewmodel.predict.BatchPredictRequestVM;
 import com.alvis.media.viewmodel.predict.PredictRequestVM;
 import com.alvis.media.viewmodel.predict.PredictResultVM;
@@ -17,7 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController("PredictController")
 @RequestMapping(value = "/api/predict")
@@ -26,6 +29,17 @@ public class PredictController extends BaseApiController {
 
     private final PredictService predictService;
     private final HeatLogService heatLogService;
+    private final PythonEngineClient engineClient;
+
+    /** 常驻推理服务状态：DISABLED（未配置）/ UP / DEGRADED（熔断中，已降级回 CLI） */
+    @GetMapping("/engine")
+    public RestResponse<Map<String, Object>> engine() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("status", engineClient.status());
+        data.put("url", engineClient.baseUrl());
+        data.put("lastError", engineClient.lastError());
+        return RestResponse.ok(data);
+    }
 
     /** 单条热度预测（并记录） */
     @PostMapping

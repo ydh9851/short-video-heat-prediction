@@ -71,6 +71,82 @@
       </el-table>
     </el-card>
 
+    <!-- ============ 模型版本与影子对比 ============ -->
+    <el-card shadow="never" class="raw-card">
+      <div class="list-toolbar">
+        <div class="section-title">模型版本与影子对比</div>
+        <div class="raw-actions">
+          <el-tag v-if="shadow" size="small" type="info" effect="plain">
+            影子：{{ shadow.primaryModel || '线上' }} vs {{ shadow.shadowModel }}
+          </el-tag>
+          <span v-if="shadow && shadow.count" class="muted">
+            {{ shadow.count }} 次对比 · 平均偏差 {{ shadow.meanAbsDiffPct }}% · P90 {{ shadow.p90AbsDiffPct }}%
+          </span>
+          <el-button size="small" :loading="syncingModels" @click="syncModels">同步注册表</el-button>
+        </div>
+      </div>
+      <div class="muted raw-hint">
+        版本号 = 特征版本 + 缓存文件时间，特征一变或模型重训即产生新版本；影子模式让候选模型对真实请求并行打分，
+        只记录与线上模型的差异，不改变返回结果。
+      </div>
+      <el-table :data="models" size="small" v-loading="loadingModels">
+        <el-table-column prop="model" label="模型" width="90" />
+        <el-table-column prop="activeVersion" label="线上版本" min-width="190" />
+        <el-table-column label="阶段" width="110">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.stage === 'production' ? 'success' : 'warning'" effect="light">
+              {{ row.stage }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="R²(log)" width="110">
+          <template #default="{ row }">{{ row.r2 == null ? '-' : row.r2.toFixed(4) }}</template>
+        </el-table-column>
+        <el-table-column label="版本数" width="90" prop="versionCount" />
+        <el-table-column prop="trainedAt" label="训练时间" width="170" />
+        <el-table-column label="操作" width="110">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" :disabled="row.versionCount < 2"
+                       @click="rollbackModel(row)">回滚</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- ============ 数据质量门禁 ============ -->
+    <el-card shadow="never" class="raw-card">
+      <div class="list-toolbar">
+        <div class="section-title">
+          数据质量门禁
+          <el-tag v-if="quality" size="small" :type="qualityTag(quality.status)" effect="dark" style="margin-left:8px">
+            {{ quality.status }}
+          </el-tag>
+        </div>
+        <div class="raw-actions">
+          <span v-if="quality" class="muted">通过 {{ quality.passed }} / {{ quality.summary.total }} 项</span>
+          <el-button size="small" type="primary" :loading="checkingQuality" @click="runQuality">运行质检</el-button>
+        </div>
+      </div>
+      <div class="muted raw-hint">
+        硬性检查（schema 完整性 / 关键字段缺失率 / 互动量非负 / 时间区间）失败即判 FAIL，应阻断该平台进入建模；
+        软性检查（主键重复率 / 类别覆盖 / 热度分布 PSI）仅提示，不阻断。
+      </div>
+      <el-table v-if="quality" :data="quality.checks" size="small">
+        <el-table-column prop="name" label="检查项" min-width="220" />
+        <el-table-column label="级别" width="86">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.level === 'HARD' ? 'info' : 'warning'" effect="plain">{{ row.level }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="结果" width="88">
+          <template #default="{ row }">
+            <el-tag size="small" :type="qualityTag(row.status)" effect="light">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="detail" label="明细" min-width="360" />
+      </el-table>
+    </el-card>
+
     <!-- ============ 关键指标 ============ -->
     <div class="kpi-grid" v-loading="loadingOverview">
       <div v-for="k in kpis" :key="k.label" class="kpi-card">
@@ -208,6 +284,7 @@ import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, Gr
 import { CanvasRenderer } from 'echarts/renderers'
 
 import dataApi from '@/api/data'
+import modelApi from '@/api/model'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, GraphicComponent, CanvasRenderer])
 
@@ -225,6 +302,14 @@ export default {
       rawFiles: [],
       uploadFile: null,
       uploadPlatform: 'douyin',
+      // 数据质量门禁结果
+      quality: null,
+      checkingQuality: false,
+      // 模型注册表与影子对比
+      models: [],
+      loadingModels: false,
+      syncingModels: false,
+      shadow: null,
       platforms: [],
       platform: 'douyin',
       ov: {},
@@ -266,6 +351,8 @@ export default {
   created () {
     this.loadPlatforms()
     this.loadRawFiles()
+    this.runQuality()
+    this.loadModels()
   },
   mounted () {
     window.addEventListener('resize', this.resizeHandler)
@@ -312,6 +399,45 @@ export default {
       this.keyword = ''
       this.loadOverview()
       this.loadSamples()
+      this.runQuality()
+    },
+    loadModels () {
+      this.loadingModels = true
+      modelApi.list().then(re => {
+        this.models = (re.response || {}).models || []
+        this.loadingModels = false
+      }).catch(() => { this.loadingModels = false })
+      modelApi.shadow(5).then(re => { this.shadow = re.response || null }).catch(() => {})
+    },
+    syncModels () {
+      this.syncingModels = true
+      modelApi.sync().then(() => {
+        this.syncingModels = false
+        this.$message.success('注册表已同步')
+        this.loadModels()
+      }).catch(() => { this.syncingModels = false })
+    },
+    rollbackModel (row) {
+      modelApi.rollback(row.model).then(() => {
+        this.$message.success(row.model + ' 已回滚到上一版本')
+        this.loadModels()
+      }).catch(() => this.$message.error('回滚失败：' + row.model + ' 只有一个版本'))
+    },
+    qualityTag (status) {
+      if (status === 'PASS') return 'success'
+      if (status === 'WARN') return 'warning'
+      return 'danger'
+    },
+    runQuality () {
+      this.checkingQuality = true
+      dataApi.quality(this.platform).then(re => {
+        this.quality = re.response || null
+        this.checkingQuality = false
+        const st = (this.quality || {}).status
+        if (st === 'PASS') this.$message.success('质量检查通过：8 项全部达标')
+        else if (st === 'WARN') this.$message.warning('质量检查有提示项，可继续使用')
+        else this.$message.error('质量检查未通过，建议先修复数据再建模')
+      }).catch(() => { this.checkingQuality = false })
     },
     loadRawFiles () {
       this.loadingRaw = true

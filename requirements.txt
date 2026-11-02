@@ -19,3 +19,7 @@ xgboost==3.4.1
 shap==0.54.1
 joblib==1.6.0
 scipy==1.18.1
+
+# --- 常驻推理服务（algorithm/service/main.py）---
+fastapi==0.162.0
+uvicorn==0.54.0

@@ -1,12 +1,17 @@
 package com.alvis.media.service.impl;
 
 import com.alvis.media.service.PredictService;
+import com.alvis.media.service.ShadowService;
 import com.alvis.media.utility.PythonCliRunner;
+import com.alvis.media.utility.PythonEngineClient;
 import com.alvis.media.viewmodel.predict.BatchPredictRequestVM;
 import com.alvis.media.viewmodel.predict.PredictRequestVM;
 import com.alvis.media.viewmodel.predict.PredictResultVM;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -19,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -37,16 +43,26 @@ public class PredictServiceImpl implements PredictService {
     @Value("${system.python.predictScript:}")
     private String predictScript;
 
+    private static final Logger log = LoggerFactory.getLogger(PredictServiceImpl.class);
+
     private final StringRedisTemplate redisTemplate;
     private final PythonCliRunner runner;
+    private final PythonEngineClient engine;
+    private final ShadowService shadow;
+    private final MeterRegistry meterRegistry;
     private final ObjectMapper om = new ObjectMapper();
 
     private static final List<String> MODELS =
             Arrays.asList("lgbm", "xgb", "rf", "lr", "knn", "svm", "dt");
 
-    public PredictServiceImpl(StringRedisTemplate redisTemplate, PythonCliRunner runner) {
+    public PredictServiceImpl(StringRedisTemplate redisTemplate, PythonCliRunner runner,
+                              PythonEngineClient engine, ShadowService shadow,
+                              MeterRegistry meterRegistry) {
         this.redisTemplate = redisTemplate;
         this.runner = runner;
+        this.engine = engine;
+        this.shadow = shadow;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -58,20 +74,60 @@ public class PredictServiceImpl implements PredictService {
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
+                meterRegistry.counter("predict.requests", "source", "cache").increment();
                 return om.readValue(cached, PredictResultVM.class);
             }
         } catch (Exception ignore) {
         }
-        try {
-            String json = callPython(req);
-            PredictResultVM vm = parse(json);
+        long startNanos = System.nanoTime();
+        // 首选常驻推理服务（几十毫秒）；不可用时自动降级到 CLI 通道
+        String source = "engine";
+        PredictResultVM result = callEngine(req);
+        if (result == null) {
+            source = "cli";
             try {
-                redisTemplate.opsForValue().set(cacheKey, om.writeValueAsString(vm), 1, TimeUnit.HOURS);
-            } catch (Exception ignore) {
+                result = parse(callPython(req));
+            } catch (Exception e) {
+                throw new RuntimeException("短视频热度预测服务调用失败: " + e.getMessage(), e);
             }
-            return vm;
+        }
+        meterRegistry.counter("predict.requests", "source", source).increment();
+        meterRegistry.timer("predict.latency", "source", source)
+                .record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
+        cacheResult(cacheKey, result);
+        // 影子模式：异步给候选模型打分并记录差异，不阻塞本次返回
+        if (result.getPrediction() != null) {
+            shadow.recordAsync(req, req.getModel(), result.getPrediction());
+        }
+        return result;
+    }
+
+    /** 走常驻推理服务；未启用/熔断/失败都返回 null，由调用方回落到 CLI。 */
+    private PredictResultVM callEngine(PredictRequestVM req) {
+        if (!engine.available()) {
+            return null;
+        }
+        try {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("model", req.getModel());
+            body.put("category", req.getVideoCategory());
+            body.put("fans", req.getAuthorFans());
+            body.put("hour", req.getPublishHour());
+            body.put("weekday", req.getPublishWeekday());
+            body.put("month", req.getPublishMonth());
+            return parse(engine.post("/predict", body).toString());
         } catch (Exception e) {
-            throw new RuntimeException("短视频热度预测服务调用失败: " + e.getMessage(), e);
+            meterRegistry.counter("predict.engine.fallback").increment();
+            log.warn("预测请求降级到 CLI 通道：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    private void cacheResult(String cacheKey, PredictResultVM vm) {
+        try {
+            redisTemplate.opsForValue().set(cacheKey, om.writeValueAsString(vm), 1, TimeUnit.HOURS);
+        } catch (Exception ignore) {
+            // 缓存失败不影响预测结果
         }
     }
 

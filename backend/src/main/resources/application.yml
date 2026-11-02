@@ -9,6 +9,19 @@ server:
     enabled: true
     min-response-size: 1
 
+# 可观测性：暴露健康检查、指标与 Prometheus 抓取端点（仅本机演示，生产需鉴权）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: short-video-heat-prediction
+
 #logging logback
 logging:
   config: classpath:logback-spring.xml
