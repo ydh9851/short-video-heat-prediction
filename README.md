@@ -14,13 +14,20 @@
 | 🎯 热度预测 | LightGBM / XGBoost / RF / LR / KNN / DT 六模型回归对比，单条 + 批量预测 |
 | 📊 热度分级 | K-Means 聚类自动定档 + 分类模型预测热度等级（低/中/高） |
 | 🔍 归因分析 | SHAP 全局重要性 / 单样本瀑布图 / 部分依赖图 / 交互效应 / 反事实建议 |
-| 📈 模型评估 | 交叉验证 / 超参数搜索 / 学习曲线 / 特征消融 / 残差分析 / 分位数回归，**异步任务 + 实时进度** |
+| 📈 模型评估 | 交叉验证 / 超参数搜索 / 学习曲线 / 特征消融 / 残差分析 / 分位数回归 / **保形预测区间（有限样本覆盖保证 + Mondrian 条件覆盖）**，**异步任务 + 实时进度** |
 | 🌐 跨平台分析 | 4 平台（抖音 / YouTube / TikTok / B 站）SHAP 贡献对照、分布漂移 PSI/KS 检验 |
 | ⏱️ 增长预测 | TikTok 真实每日累计快照 → 发布后 1/3/7 天热度预测 |
 | 🗂️ 数据管理 | 数据集注册表、类别分布、时间跨度总览，**原始数据文件上传（自动补平台前缀）与文件清单** |
+| 🧾 实验台账 | 每次实验自动记账（参数 / 耗时 / traceId / 结果），前端可回看任意历史实验结果 |
+| 🧠 解释质量 | 紧凑性（解释 80% 贡献所需特征数）/ 一致性（三种重要性排序 Kendall τ）/ 稳定性（bootstrap 重训 Jaccard） |
+| 🧩 特征论证 | base（7 维）/ +内容属性（11 维）/ +标题文本（43 维）三组特征集同数据同模型对照，量化「加维度」的 R² 增益 |
+| ⏱️ 两阶段预测 | 仅发布时先验（R² 0.593）→ +第 1 天信号（0.965）→ +第 1、3 天信号（0.990），量化早期传播势能的价值 |
+| 🚦 数据质量 | 8 项断言（schema 完整性 / 关键字段缺失率 / 互动量非负 / 主键重复率 / 类别覆盖 / 热度分布 PSI / 时间区间），PASS-WARN-FAIL 三态 + 报告落盘 |
+| 🗃️ 模型治理 | 模型注册表（版本 + production/staging/archived 阶段，支持 promote / rollback）+ **影子模式**（候选模型并行打分，只记录与线上模型的差异） |
+| 🧪 结论稳健性 | 反事实建议的三重检验：安慰剂维度、随机子集重训（增益 CV）、跨模型替换（最优取值一致性） |
 | 🖥️ 数据大屏 | 跨平台样本量对比、类别 Top10、热度等级分布、热度分位大屏可视化 |
 | 🧪 EDA | 特征分布可视化、相关性热力图 |
-| 📝 报告导出 | 预测结果一键导出 PNG / PDF |
+| 📝 报告导出 | 归因页一键生成**自包含 HTML 审计报告**（预测值 + 90% 区间 + 单条/全局 SHAP + 反事实建议 + 模型版本 + traceId，图片内嵌可离线分享）；另支持 CSV 导出 |
 
 ---
 
@@ -44,8 +51,12 @@
 |---|---|
 | 链路追踪 | `TraceIdFilter` 生成/透传 `X-Trace-Id` → MDC → logback `%X{traceId}` → Python 子进程环境变量 `TRACE_ID`（算法异常 JSON 回带 `trace_id`），一次请求的 Java 日志与算法报错可按同一 id 检索 |
 | 子进程管理 | `PythonCliRunner` 统一封装：读流与等待并行（超时真正生效并强杀进程）、非零退出码带出 stdout、注入 UTF-8 环境，杜绝卡死与乱码 |
+| 常驻推理服务 | `algorithm/service/main.py`（FastAPI sidecar，端口 8100）启动即预热模型，单次预测约 **11ms**（CLI 通道约 **890ms**）；`PythonEngineClient` 带 **30 秒熔断**，服务不可用时自动降级回 CLI，结果完全一致 |
 | 模型缓存 | joblib bundle 带 `FEATURE_VERSION` 与特征列校验，特征工程变更后旧缓存自动失效重训，避免脏缓存静默给出错误预测 |
 | 长任务调度 | 分钟级实验走独立线程池（`EvaluationTaskConfig`），任务状态存 Redis，前端 `/submit` + `/task/{id}` 轮询，不再占用 HTTP 长连接 |
+| 实验治理 | 实验完成/失败自动追加 `data/logs/experiment_runs.jsonl`（MLflow Tracking 的 run 概念），`/api/evaluation/runs` 可回看历史，一条记录对齐参数、耗时、traceId 与结果 |
+| 限流与指标 | `/api/predict` 等昂贵接口按 IP 令牌桶限流（默认 10 QPS / 突发 20，超限返回 429 带 traceId）；Micrometer 指标经 `/actuator/prometheus` 暴露（`predict_latency_seconds{source=engine|cli}`、`predict_requests_total`、`predict_engine_fallback`） |
+| 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + 后端测试 + 前端构建三阶段 |
 | 测试 | `mvn test` 可直接运行：统一响应体、`PythonCliRunner`（含超时强杀、traceId 透传回归用例）、RSA 加解密；surefire 已取消全局 `skipTests` |
 
 ---

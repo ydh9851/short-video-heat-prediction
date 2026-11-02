@@ -55,3 +55,19 @@ data/processed/*.csv
 .DS_Store
 Thumbs.db
 ~$*
+
+# 运行期实验台账（JSONL，本地累积，不入库）
+data/logs/
+
+# 特征增量实验的中间缓存（可由 data/raw/youtube_trending.csv 重建）
+data/processed/*.parquet
+data/external/
+
+# 数据质量检查报告（运行期产物）
+data/processed/quality_report.json
+
+# 归因报告输出（运行期生成，可随时重生成）
+data/reports/
+
+# 模型注册表（由 model_cache 扫描生成）
+data/models/
