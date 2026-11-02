@@ -77,6 +77,15 @@ public class EvaluationController extends BaseApiController {
     }
 
     /**
+     * 取某个实验模式最近一次成功运行的结果，便于在业务页面直接引用实验结论
+     * （例如归因页展示"解释质量三指标"与"反事实稳健性"结论）。未跑过则返回 null。
+     */
+    @GetMapping("/latest")
+    public RestResponse<JsonNode> latest(@RequestParam("mode") String mode) {
+        return RestResponse.ok(experimentLedgerService.latestResult(mode, 200));
+    }
+
+    /**
      * 实验台账：历史实验记录（含参数、状态、耗时、traceId 与结果），新的在前。
      * 落盘在 data/logs/experiment_runs.jsonl，可直接用 pandas 二次分析。
      */

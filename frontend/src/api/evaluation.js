@@ -11,6 +11,8 @@ export default {
   tasks: () => get('/api/evaluation/tasks', null, 30000),
   // 实验台账：历史实验记录（含参数、耗时、traceId、结果）
   runs: (limit = 20) => get('/api/evaluation/runs', { limit }, 30000),
+  // 某个实验模式最近一次成功运行的结果（供业务页面引用实验结论）
+  latest: mode => get('/api/evaluation/latest', { mode }, 30000),
   // 同步执行（保留给脚本/调试，前端不再使用）
   run: query => post('/api/evaluation/run', query, 600000)
 }

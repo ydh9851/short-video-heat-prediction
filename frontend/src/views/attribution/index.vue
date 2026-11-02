@@ -13,6 +13,24 @@
       </div>
     </div>
 
+    <!-- ==================== 解释可信度徽章（引用实验结论） ==================== -->
+    <div v-if="quality" class="trust-strip">
+      <span class="trust-label">本次解释可信度</span>
+      <el-tooltip content="紧凑性：解释 80% 平均绝对贡献所需特征数，越小越可概括" placement="top">
+        <span class="trust-chip">紧凑性 k80 = <b>{{ quality.compacity.k80 }}</b></span>
+      </el-tooltip>
+      <el-tooltip content="一致性：SHAP 排序与增益重要性的 Kendall τ，越接近 1 越一致" placement="top">
+        <span class="trust-chip">一致性 τ = <b>{{ fmt(quality.consistency.kendall_shap_vs_gain, 2) }}</b></span>
+      </el-tooltip>
+      <el-tooltip content="稳定性：bootstrap 重训后 Top-K 特征集合的 Jaccard，1 表示完全一致" placement="top">
+        <span class="trust-chip">稳定性 Jaccard = <b>{{ fmt(quality.stability.jaccard_mean, 3) }}</b></span>
+      </el-tooltip>
+      <span class="trust-note">来自最近一次「解释质量评估」实验</span>
+      <router-link to="/evaluation/index">
+        <el-button link type="primary" size="small">重跑该实验 ›</el-button>
+      </router-link>
+    </div>
+
     <!-- ==================== ① 全局归因 ==================== -->
     <el-card shadow="never" class="block-card" v-loading="globalLoading">
       <div class="card-head">
@@ -181,6 +199,18 @@
           <el-empty v-else description="无可视化（已是最优）" :image-size="70" />
         </el-col>
       </el-row>
+      <div v-if="refutation" class="stability-warn">
+        <b>稳定性提示</b>：上表是模型内插值的点估计，不是真实因果效应。
+        <template v-if="refutation.stability && refutation.stability.hour_gain">
+          子集重估显示发布小时增益的变异系数 CV = {{ refutation.stability.hour_gain.cv }}
+          （区间 {{ Math.round(refutation.stability.hour_gain.min * 100) }}% ~
+          {{ Math.round(refutation.stability.hour_gain.max * 100) }}%），最优取值在重训之间会漂移；
+        </template>
+        请按「<b>方向 + 区间</b>」理解这些建议，不要当作精确的收益承诺。
+        <router-link to="/evaluation/index">
+          <el-button link type="primary" size="small">查看稳健性检验 ›</el-button>
+        </router-link>
+      </div>
     </el-card>
 
     <!-- ==================== ③ 特征依赖关系 PDP ==================== -->
@@ -274,9 +304,12 @@ export default {
       },
       explain: null,
       explainLoading: false,
-    reportLoading: false,
+      reportLoading: false,
       cf: null,
       cfLoading: false,
+      // 引用实验台账中的结论：解释质量三指标 + 反事实稳健性
+      quality: null,
+      refutation: null,
       pdpFeature: 'author_fans_log',
       pdp: null,
       pdpLoading: false,
@@ -302,6 +335,7 @@ export default {
   created () {
     this.loadGlobal()
     this.doPdp()
+    this.loadTrust()
   },
   mounted () {
     window.addEventListener('resize', this.resizeHandler)
@@ -315,6 +349,19 @@ export default {
     this.charts = {}
   },
   methods: {
+    // 读取实验台账中最近一次的「解释质量评估」与「反事实稳健性检验」结论
+    loadTrust () {
+      evaluationApi.latest('explanation-quality').then(re => {
+        this.quality = re.response || null
+      }).catch(() => { this.quality = null })
+      evaluationApi.latest('refutation').then(re => {
+        this.refutation = re.response || null
+      }).catch(() => { this.refutation = null })
+    },
+    fmt (v, digits) {
+      if (v == null) return '-'
+      return Number(v).toFixed(digits == null ? 3 : digits)
+    },
     resizeHandler () {
       Object.values(this.charts).forEach(c => c && c.resize())
     },
@@ -634,5 +681,61 @@ export default {
 
 .explain-tip {
   margin-bottom: 14px;
+}
+
+/* ============ 解释可信度徽章条 ============ */
+.trust-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 1px solid #e8ecf6;
+  border-left: 3px solid #6b5bd2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.trust-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.trust-chip {
+  font-size: 12px;
+  color: #64748b;
+  background: #f6f4ff;
+  border: 1px solid #e6e2fb;
+  border-radius: 6px;
+  padding: 4px 9px;
+
+  b {
+    color: #4f46e5;
+    font-size: 13px;
+  }
+}
+
+.trust-note {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+/* ============ 稳定性警示 ============ */
+.stability-warn {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 12px;
+
+  b {
+    color: #b45309;
+  }
 }
 </style>

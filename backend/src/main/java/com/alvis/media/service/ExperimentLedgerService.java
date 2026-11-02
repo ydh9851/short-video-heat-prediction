@@ -98,4 +98,28 @@ public class ExperimentLedgerService {
             throw new RuntimeException("读取实验台账失败：" + e.getMessage(), e);
         }
     }
+
+    /**
+     * 取某个实验模式最近一次成功运行的结果（用于在业务页面直接引用实验结论）。
+     * 没有则返回 null——调用方据此决定是否展示"尚未运行"的提示。
+     */
+    public JsonNode latestResult(String mode, int lookback) {
+        if (mode == null || mode.trim().isEmpty()) {
+            return null;
+        }
+        int limit = lookback <= 0 ? 200 : Math.min(lookback, 500);
+        for (JsonNode record : recent(limit)) {
+            if (!mode.equals(record.path("mode").asText())) {
+                continue;
+            }
+            if (!"DONE".equals(record.path("status").asText())) {
+                continue;
+            }
+            JsonNode result = record.path("result");
+            if (result != null && !result.isMissingNode() && !result.isNull()) {
+                return result;
+            }
+        }
+        return null;
+    }
 }
