@@ -70,6 +70,13 @@ public class DataController extends BaseApiController {
         return RestResponse.ok(dataService.rawFiles());
     }
 
+    /** 数据质量门禁：8 项断言，返回 PASS / WARN / FAIL 与逐项明细 */
+    @GetMapping("/quality")
+    public RestResponse<JsonNode> quality(
+            @RequestParam(value = "platform", required = false) String platform) {
+        return RestResponse.ok(dataService.quality(resolve(platform)));
+    }
+
     /** 未显式传平台时用注册表默认平台，保持旧接口调用方式兼容 */
     private String resolve(String platform) {
         if (platform != null && !platform.trim().isEmpty()) {

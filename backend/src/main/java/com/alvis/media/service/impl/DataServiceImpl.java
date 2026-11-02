@@ -77,6 +77,10 @@ public class DataServiceImpl implements DataService {
     @Value("${system.data.rawDir:../data/raw}")
     private String rawDir;
 
+    /** 数据质量检查脚本 */
+    @Value("${system.python.qualityScript:../algorithm/datasets/quality_check.py}")
+    private String qualityScript;
+
     /** 允许上传的原始数据格式（与 ingest.py 的 _read_any 保持一致） */
     private static final List<String> RAW_EXT = List.of(".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".json");
 
@@ -536,6 +540,34 @@ public class DataServiceImpl implements DataService {
         root.put("count", list.size());
         root.put("totalMB", Math.round(totalBytes / 1024.0 / 1024.0 * 100) / 100.0);
         return root;
+    }
+
+    // ------------------------------------------------------------------ 数据质量门禁
+    @Override
+    public JsonNode quality(String platform) {
+        String pf = (platform == null || platform.trim().isEmpty()) ? "douyin" : platform.trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED.contains(pf)) {
+            throw new IllegalArgumentException("不支持的平台：" + platform + "（可选 " + SUPPORTED + "）");
+        }
+        List<String> args = Arrays.asList("--platform", pf, "--write");
+        String out;
+        try {
+            out = pythonCliRunner.run(qualityScript, args, 300);
+        } catch (Exception e) {
+            throw new RuntimeException("调用数据质量检查脚本失败：" + e.getMessage(), e);
+        }
+        String json = PythonCliRunner.lastJsonLine(out);
+        try {
+            JsonNode node = om.readTree(json);
+            if (node.hasNonNull("error")) {
+                throw new RuntimeException(node.path("error").asText());
+            }
+            return node;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("解析质量报告失败：" + e.getMessage() + " | 原始输出：" + out, e);
+        }
     }
 
     /** 按 ingest.py 的关键字规则推断文件归属平台，未识别返回空串。 */

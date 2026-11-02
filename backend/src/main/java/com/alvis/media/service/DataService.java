@@ -33,4 +33,10 @@ public interface DataService {
 
     /** data/raw 下已存在的原始数据文件清单（含体积、更新时间、可识别的平台） */
     JsonNode rawFiles();
+
+    /**
+     * 数据质量门禁：对该平台规范化数据集做 8 项断言（schema / 缺失率 / 负值 / 重复率 /
+     * 类别覆盖 / 热度分布 PSI / 时间区间），返回 PASS / WARN / FAIL 与逐项明细。
+     */
+    JsonNode quality(String platform);
 }

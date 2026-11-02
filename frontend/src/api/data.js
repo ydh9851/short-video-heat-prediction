@@ -11,6 +11,8 @@ export default {
   importDataset: platform => post(`/api/data/import?platform=${encodeURIComponent(platform)}`, null, 900000),
   // data/raw 下已存在的原始数据文件清单
   rawFiles: () => get('/api/data/raw-files', null, 60000),
+  // 数据质量门禁（8 项断言，返回 PASS / WARN / FAIL）
+  quality: platform => get('/api/data/quality', { platform }, 300000),
   // 上传原始数据文件到 data/raw（multipart，大文件放宽到 30 分钟）
   upload: (platform, formData) =>
     form(`/api/data/upload?platform=${encodeURIComponent(platform)}`, formData, 1800000)
