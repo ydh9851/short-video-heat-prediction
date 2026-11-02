@@ -30,8 +30,20 @@
           <span>LightGBM R²(log)</span>
         </div>
         <div class="hero-stat">
-          <b>14</b>
-          <span>视频类别</span>
+          <b>89.5%</b>
+          <span>90% 区间实测覆盖</span>
+        </div>
+        <div class="hero-stat">
+          <b>+9.46pp</b>
+          <span>特征维度增益</span>
+        </div>
+        <div class="hero-stat">
+          <b>17</b>
+          <span>类可复现实验</span>
+        </div>
+        <div class="hero-stat">
+          <b>34 ms</b>
+          <span>预测响应（常驻服务）</span>
         </div>
       </div>
     </section>
@@ -127,6 +139,43 @@
       </el-col>
     </el-row>
 
+    <!-- ============ 能力全景 ============ -->
+    <el-card shadow="never" class="block-card">
+      <div class="section-title">能力全景：三端协同 · 六类能力</div>
+      <el-table :data="capabilities" size="small" class="cap-table">
+        <el-table-column prop="layer" label="层次" width="130" />
+        <el-table-column prop="stack" label="技术栈" width="220" />
+        <el-table-column prop="ability" label="关键能力" min-width="360" />
+        <el-table-column prop="output" label="可交付产物" min-width="230" />
+      </el-table>
+      <div class="cross-grid">
+        <div v-for="c in crossCutting" :key="c.title" class="cross-card">
+          <div class="cross-title">{{ c.title }}</div>
+          <div class="cross-desc">{{ c.desc }}</div>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- ============ 结论如何被证明 ============ -->
+    <div class="section-title">结论如何被证明：三步递进的可信度论证</div>
+    <div class="proof-grid">
+      <div v-for="p in proofs" :key="p.no" class="proof-card">
+        <div class="proof-no">{{ p.no }}</div>
+        <div class="proof-title">{{ p.title }}</div>
+        <div class="proof-question">{{ p.question }}</div>
+        <ul class="proof-points">
+          <li v-for="t in p.points" :key="t.k">
+            <b>{{ t.k }}</b>
+            <span>{{ t.v }}</span>
+          </li>
+        </ul>
+        <div class="proof-verdict">{{ p.verdict }}</div>
+        <router-link to="/evaluation/index">
+          <el-button link type="primary" size="small">在实验中心运行该实验 ›</el-button>
+        </router-link>
+      </div>
+    </div>
+
     <!-- ============ 系统架构 ============ -->
     <el-card shadow="never" class="block-card">
       <div class="section-title">系统架构（三端协同）</div>
@@ -207,6 +256,67 @@ export default {
           no: 'M4', title: '运营决策支持', label: '归因 → 建议 的闭环', icon: 'skill', tone: 'green',
           desc: '依据输入特征与 SHAP 贡献方向，自动生成可执行的运营建议，实现「归因 → 决策」闭环。',
           points: ['粉丝基数偏低 → 账号导流 / 联动', '凌晨发布 → 迁移至晚间高峰', '主要拖累特征 → 优先改善项']
+        }
+      ],
+      capabilities: [
+        {
+          layer: '前端展示层',
+          stack: 'Vue 3 · Element Plus · ECharts',
+          ability: '预测 / 归因 / 分级交互页、数据大屏、实验中心（17 类实验分组运行 + 结论卡）、模型治理页',
+          output: '交互式分析界面、图表、自包含 HTML 审计报告'
+        },
+        {
+          layer: 'Java 服务层',
+          stack: 'Spring Boot · Security · MyBatis-Plus · Redis · Undertow',
+          ability: 'REST API 与登录鉴权、分钟级实验异步任务调度（Redis 状态 + 轮询）、令牌桶限流、traceId 贯穿',
+          output: '统一响应契约、可观测接口（/actuator/prometheus）'
+        },
+        {
+          layer: '算法引擎层',
+          stack: 'Python · LightGBM · SHAP · scikit-learn',
+          ability: '六模型回归对照、SHAP 四维归因、保形预测区间、两阶段预测、解释质量三指标、稳健性三重检验',
+          output: '可复现实验脚本、图表与 JSON 结论产物'
+        }
+      ],
+      crossCutting: [
+        { title: '数据治理', desc: '4 平台数据统一归一化 + 8 项质量断言（schema / 缺失率 / 非负 / 重复率 / 类别覆盖 / PSI / 时间区间），PASS-WARN-FAIL 三态，不达标可阻断建模' },
+        { title: '模型治理', desc: '模型注册表（版本 + production/staging/archived 阶段，支持切换与回滚）+ 影子模式（候选模型并行打分，实测 lgbm vs rf 平均偏差 29.5%）' },
+        { title: '工程保障', desc: '常驻推理服务（890ms → 34ms，30 秒熔断自动降级回 CLI）+ Prometheus 指标 + 16 项自动化测试 + CI 流水线' },
+        { title: '实验治理', desc: '每次实验自动记入台账（参数 / 耗时 / traceId / 结果），失败也记账，可回看任意历史实验并两条对比' }
+      ],
+      proofs: [
+        {
+          no: 'P1',
+          title: '区间可信吗',
+          question: '给出的预测区间，凭什么相信它能覆盖真实值？',
+          points: [
+            { k: '保形预测实测覆盖', v: '89.5%（名义 90%，偏差 0.5pp）' },
+            { k: '分位数回归对照', v: '仅 76.4%，且置信水平越低欠覆盖越严重' },
+            { k: '条件覆盖（Mondrian）', v: '高热度档 69.1% → 80.8%' }
+          ],
+          verdict: '结论：区间从「事后检验覆盖率」升级为「有限样本覆盖保证」。'
+        },
+        {
+          no: 'P2',
+          title: '归因可信吗',
+          question: 'SHAP 说粉丝数最重要，凭什么相信这个排序？',
+          points: [
+            { k: '紧凑性 k80', v: '1 个特征即可解释 80% 的平均绝对贡献' },
+            { k: '一致性 Kendall τ', v: '0.81（SHAP vs 增益重要性）' },
+            { k: '稳定性 Jaccard', v: '1.000（3 次 bootstrap 重训 Top-3 集合一致）' }
+          ],
+          verdict: '结论：解释结论在数据扰动下可复现；且只有首位特征在三种度量下收敛，其余特征接近噪声——这一点如实呈现。'
+        },
+        {
+          no: 'P3',
+          title: '建议可信吗',
+          question: '「改到 16 点能涨 48%」这种建议，是模型的幻觉吗？',
+          points: [
+            { k: '安慰剂维度', v: '弱维度增益 0.0%，程序未凭空造出收益（PASS）' },
+            { k: '子集重估', v: '小时增益 6.2%~118.9%，CV = 0.71（WARN）' },
+            { k: '跨模型替换', v: '最优时点一致，但最优类别不一致（WARN）' }
+          ],
+          verdict: '结论：反事实建议只作「方向 + 区间」参考。主动暴露并下调自己的结论强度，是本课题的方法论特点。'
         }
       ],
       features: [
@@ -316,8 +426,9 @@ export default {
   }
 
   .hero-right {
-    display: flex;
-    gap: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(104px, 1fr));
+    gap: 12px;
     flex-shrink: 0;
   }
 
@@ -648,5 +759,114 @@ export default {
     transform: rotate(90deg);
     padding: 8px 0;
   }
+}
+
+/* ============ 能力全景 ============ */
+.cap-table {
+  margin-bottom: 14px;
+}
+
+.cross-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.cross-card {
+  border: 1px solid #eceafc;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #fafaff 0%, #ffffff 100%);
+  padding: 12px 14px;
+}
+
+.cross-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #4f46e5;
+  margin-bottom: 6px;
+}
+
+.cross-desc {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: #64748b;
+}
+
+/* ============ 结论如何被证明 ============ */
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.proof-card {
+  border: 1px solid #e9e6fb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px 18px;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, .06);
+}
+
+.proof-no {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: #4f46e5;
+  border-radius: 5px;
+  padding: 2px 9px;
+  letter-spacing: .06em;
+  margin-bottom: 9px;
+}
+
+.proof-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.proof-question {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.proof-points {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.proof-points li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  line-height: 2;
+  border-bottom: 1px dashed #f0f1f8;
+}
+
+.proof-points b {
+  color: #64748b;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.proof-points span {
+  color: #1e293b;
+  font-weight: 700;
+  text-align: right;
+}
+
+.proof-verdict {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: #4f46e5;
+  background: #f6f4ff;
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 6px;
 }
 </style>

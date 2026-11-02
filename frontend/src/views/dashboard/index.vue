@@ -57,14 +57,15 @@
             <div class="km-label">{{ m.label }}</div>
             <div class="km-value" :class="m.tone">{{ m.value }}</div>
             <div class="km-sub">{{ m.sub }}</div>
+            <div class="km-from">来源：{{ m.from }} 实验</div>
           </div>
         </div>
 
         <!-- 实验清单 -->
         <div class="key-exp">
           <div class="key-exp-head">
-            <span class="key-exp-title">9 类离线实验</span>
-            <span class="key-exp-hint">点击前往「模型评估」运行</span>
+            <span class="key-exp-title">{{ modes.length || 17 }} 类可复现实验</span>
+            <span class="key-exp-hint">点击前往「实验中心」运行</span>
           </div>
           <div class="key-exp-list">
             <div
@@ -82,9 +83,11 @@
       </div>
 
       <div class="key-tip">
-        交叉验证与区间覆盖率来自「模型评估」模块的可复现实验结果；消融实验显示周期编码对树模型增益有限（−0.0005），
-        说明 LightGBM 已能从日期特征中自行学习时间模式；三方重要性度量的第一名均为「作者粉丝数」，
-        印证了先验粉丝规模是短视频热度的最强信号。
+        以上指标全部来自「实验中心」的可复现脚本，一键复跑、自动记入台账（参数 / 耗时 / traceId / 结果）。
+        三个核心判断：① 训练样本从 80% 加到 100% 只涨约 0.2pp，而加内容与文本特征涨 9.46pp，说明瓶颈在特征维度而非样本量；
+        ② 保形预测把预测区间从「事后检验覆盖率」升级为「有限样本覆盖保证」，实测 89.5% 对标名义 90%；
+        ③ 反事实建议在子集重训下并不稳定（CV=0.71），系统因此以「方向 + 区间」而非精确承诺呈现——
+        主动暴露并修正自己的结论，是本课题的方法论特点。
       </div>
     </el-card>
 
@@ -199,12 +202,12 @@ export default {
     },
     keyMetrics () {
       return [
-        { label: '5 折交叉验证 R²', value: '0.8221', tone: 'indigo', sub: '标准差 ±0.0036 · 结果稳定' },
-        { label: '分位数区间覆盖率', value: '76.4%', tone: 'blue', sub: 'P10–P90 区间 · 名义 80%' },
-        { label: '残差 P50 / P90', value: '176.9 / 14197', tone: 'violet', sub: '中位 / 长尾误差量级' },
-        { label: '最优超参数', value: 'lr 0.02', tone: 'green', sub: 'num_leaves 31 · 特征采样 0.8 · bagging 1.0' },
-        { label: '消融 ΔR²（周期编码）', value: '−0.0005', tone: 'slate', sub: '树模型无增益 · 线性模型 +0.0024' },
-        { label: '最强特征（三方一致）', value: '作者粉丝数', tone: 'amber', small: true, sub: '增益 / 置换 / SHAP 度量均列第一' }
+        { label: '5 折交叉验证 R²(log)', value: '0.8221', tone: 'indigo', sub: '标准差 ±0.0036 · 结果稳定', from: '交叉验证' },
+        { label: '90% 保形区间实测覆盖', value: '89.5%', tone: 'green', sub: '名义 90% · 有限样本覆盖保证', from: '保形预测' },
+        { label: '特征维度增益', value: '+9.46pp', tone: 'blue', sub: '7 维 → 43 维 R²(log) 0.658→0.753', from: '特征增量' },
+        { label: '两阶段预测 R²', value: '0.590 → 0.965', tone: 'violet', sub: '加发布后第 1 天信号 · 相对误差 56.6%→11.2%', from: '两阶段预测' },
+        { label: '解释稳定性 Jaccard', value: '1.000', tone: 'green', sub: '3 次 bootstrap 重训 Top-3 特征集合一致', from: '解释质量' },
+        { label: '反事实增益变异系数', value: '0.71', tone: 'amber', sub: '最优时点不稳定 · 结论按「方向+区间」表述', from: '稳健性检验' }
       ]
     }
   },
@@ -608,7 +611,7 @@ export default {
 
 .key-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(3, minmax(190px, 1fr));
   gap: 12px;
 }
 
@@ -655,6 +658,14 @@ export default {
     color: #b6bec9;
     margin-top: 4px;
     line-height: 1.5;
+  }
+
+  .km-from {
+    font-size: 11px;
+    color: #a5b4fc;
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px dashed #eef0f7;
   }
 }
 
