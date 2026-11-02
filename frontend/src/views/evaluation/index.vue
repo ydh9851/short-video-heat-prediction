@@ -2,40 +2,91 @@
   <div class="app-container">
     <div class="page-head">
       <div class="page-head-main">
-        <div class="page-title">模型评估与实验分析</div>
+        <div class="page-title">实验中心</div>
         <div class="page-desc">
-          面向论文实验章节的可复现实验平台：交叉验证、超参数搜索、学习曲线、特征重要性对照、
-          残差与分位数误差、特征消融、预测区间、SHAP 交互效应与反事实分析。
+          17 类可复现实验，按「模型性能 / 特征论证 / 不确定性 / 可解释性 / 结论可信度」五组组织。
+          每个实验都有独立脚本、可一键复跑、自动记入台账，结论与图表可回看。
         </div>
       </div>
       <div class="page-head-actions">
         <el-tag type="info" effect="plain">算法引擎：Python + LightGBM + SHAP</el-tag>
+        <el-badge :value="runs.length" :hidden="!runs.length" class="ledger-badge">
+          <el-button size="small" @click="ledgerVisible = true">实验台账</el-button>
+        </el-badge>
       </div>
     </div>
 
-    <!-- ============ 实验选择 ============ -->
-    <div class="exp-grid">
-      <div
-        v-for="m in modes"
-        :key="m.mode"
-        class="exp-card"
-        :class="{ active: current === m.mode }"
-        @click="selectMode(m)"
-      >
-        <div class="exp-head">
-          <span class="exp-name">{{ m.name }}</span>
-          <el-tag size="small" effect="plain" class="exp-tag">{{ m.tag }}</el-tag>
-        </div>
-        <p class="exp-desc">{{ m.description }}</p>
+    <!-- ============ 推荐演示路径 ============ -->
+    <el-card shadow="never" class="demo-card">
+      <div class="demo-head">
+        <span class="section-title">推荐演示路径</span>
+        <span class="demo-hint">依次点 4 步，即可讲完「模型可测 → 加维度有效 → 区间可信 → 结论可审计」</span>
       </div>
-    </div>
+      <div class="demo-steps">
+        <div
+          v-for="(s, i) in demoSteps"
+          :key="s.mode"
+          class="demo-step"
+          :class="{ active: current === s.mode }"
+          @click="selectModeByKey(s.mode)"
+        >
+          <div class="demo-idx">{{ i + 1 }}</div>
+          <div class="demo-body">
+            <div class="demo-name">{{ s.name }}</div>
+            <div class="demo-desc">{{ s.desc }}</div>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- ============ 左目录 + 右内容 ============ -->
+    <div class="exp-layout">
+      <el-card shadow="never" class="catalog-card">
+        <div class="section-title">实验目录</div>
+        <el-input
+          v-model="keyword"
+          size="small"
+          placeholder="搜索实验名称或说明"
+          prefix-icon="el-icon-search"
+          clearable
+          class="catalog-search"
+        />
+        <div v-for="g in filteredGroups" :key="g.key" class="catalog-group">
+          <div class="catalog-group-title">
+            <span class="catalog-group-name">{{ g.name }}</span>
+            <span class="catalog-count">{{ g.items.length }}</span>
+          </div>
+          <div
+            v-for="m in g.items"
+            :key="m.mode"
+            class="catalog-item"
+            :class="{ active: current === m.mode }"
+            @click="selectMode(m)"
+          >
+            <div class="catalog-item-top">
+              <span class="catalog-name">{{ m.name }}</span>
+              <span class="catalog-tag">{{ m.tag }}</span>
+            </div>
+            <p class="catalog-desc">{{ m.description }}</p>
+          </div>
+        </div>
+        <el-empty v-if="!filteredGroups.length" description="没有匹配的实验" :image-size="60" />
+      </el-card>
+
+      <div class="exp-main">
 
     <!-- ============ 运行面板 ============ -->
-    <el-card shadow="never" class="run-card">
-      <div class="run-head">
-        <div class="section-title">实验参数</div>
-        <el-button type="primary" :loading="running" @click="run">开始实验</el-button>
-      </div>
+        <el-card shadow="never" class="run-card">
+          <div class="run-head">
+            <div class="run-head-text">
+              <div class="run-mode-name">
+                {{ currentMeta.name || '实验' }}
+                <el-tag size="small" effect="plain" class="run-mode-tag">{{ currentMeta.tag }}</el-tag>
+              </div>
+              <div class="run-mode-desc">{{ currentMeta.description }}</div>
+            </div>
+            <el-button type="primary" :loading="running" @click="run">开始实验</el-button>
+          </div>
 
       <div class="run-params">
         <span class="param-label">数据集平台</span>
@@ -147,44 +198,17 @@
       </div>
     </el-card>
 
-    <!-- ============ 实验台账 ============ -->
-    <el-card shadow="never" class="history-card">
-      <div class="run-head">
-        <div class="section-title">实验台账（最近 {{ runs.length }} 条，点击行可回看结果）</div>
-        <el-button size="small" :loading="loadingRuns" @click="loadRuns">刷新</el-button>
-      </div>
-      <el-table :data="runs" size="small" max-height="240" v-loading="loadingRuns">
-        <el-table-column prop="finishedAt" label="完成时间" width="170" />
-        <el-table-column prop="mode" label="实验模式" width="180" />
-        <el-table-column label="状态" width="92">
-          <template #default="{ row }">
-            <el-tag size="small" :type="row.status === 'DONE' ? 'success' : 'danger'">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="platform" label="平台" width="100" />
-        <el-table-column label="耗时" width="96">
-          <template #default="{ row }">{{ row.elapsedMs ? (row.elapsedMs / 1000).toFixed(1) + 's' : '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="traceId" label="traceId" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" width="110">
-          <template #default="{ row }">
-            <el-button link type="primary" size="small" @click.stop="loadRun(row)">回看结果</el-button>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="还没有实验记录，跑一次实验就会自动记账" :image-size="70" />
-        </template>
-      </el-table>
-    </el-card>
-
     <!-- ============ 结果 ============ -->
     <div v-loading="running"
          :element-loading-text="'实验运行中（已 ' + elapsedSeconds + ' 秒），正在调用 Python 算法引擎…'"
          class="result-wrap">
       <template v-if="result">
-        <!-- 关键指标 -->
-        <el-card shadow="never" class="block-card">
-          <div class="section-title">关键结论</div>
+        <!-- 结论卡：先讲「所以呢」，再摆依据 -->
+        <el-card shadow="never" class="conclusion-card">
+          <div class="conclusion-head">
+            <span class="conclusion-badge">结论</span>
+            <span class="conclusion-title">{{ conclusionHeadline }}</span>
+          </div>
           <div class="kv-grid">
             <div v-for="k in summary" :key="k.label" class="kv-item">
               <div class="kv-label">{{ k.label }}</div>
@@ -194,6 +218,12 @@
           <ul v-if="notes.length" class="note-list">
             <li v-for="(n, i) in notes" :key="i">{{ n }}</li>
           </ul>
+          <div class="conclusion-foot">
+            <span>实验：{{ currentMeta.name }}</span>
+            <span v-if="lastRun">耗时 {{ (lastRun.elapsedMs / 1000).toFixed(1) }}s</span>
+            <span v-if="lastRun && lastRun.traceId" class="foot-trace">traceId {{ lastRun.traceId }}</span>
+            <span v-if="lastRun && lastRun.finishedAt" class="foot-time">{{ lastRun.finishedAt }}</span>
+          </div>
         </el-card>
 
         <!-- 明细表 -->
@@ -226,8 +256,63 @@
         </el-card>
       </template>
 
-      <el-empty v-else description="选择上方任一实验并点击「开始实验」，结果与图表会显示在这里" />
+      <el-empty v-else description="从左侧实验目录选一个实验，点击「开始实验」即可得到结论与图表" />
+        </div>
+      </div>
     </div>
+
+    <!-- ============ 实验台账抽屉 ============ -->
+    <el-drawer :visible.sync="ledgerVisible" title="实验台账（自动记账，可回看与对比）" size="64%" append-to-body>
+      <div class="ledger-toolbar">
+        <span class="muted">
+          共 {{ runs.length }} 条记录 · 勾选两条可对比参数与耗时
+        </span>
+        <div>
+          <el-button size="small" :loading="loadingRuns" @click="loadRuns">刷新</el-button>
+          <el-button size="small" type="primary" plain :disabled="compareRows.length !== 2" @click="compareMode = true">
+            对比选中（{{ compareRows.length }}/2）
+          </el-button>
+        </div>
+      </div>
+
+      <el-table
+        :data="runs"
+        size="small"
+        v-loading="loadingRuns"
+        @selection-change="rows => compareRows = rows.slice(0, 2)"
+      >
+        <el-table-column type="selection" width="42" />
+        <el-table-column prop="finishedAt" label="完成时间" width="165" />
+        <el-table-column prop="mode" label="实验模式" width="170" />
+        <el-table-column label="状态" width="86">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === 'DONE' ? 'success' : 'danger'">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="platform" label="平台" width="90" />
+        <el-table-column label="耗时" width="90">
+          <template #default="{ row }">{{ row.elapsedMs ? (row.elapsedMs / 1000).toFixed(1) + 's' : '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="traceId" label="traceId" min-width="150" show-overflow-tooltip />
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click.stop="loadRun(row)">回看结果</el-button>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="还没有实验记录，跑一次实验就会自动记账" :image-size="70" />
+        </template>
+      </el-table>
+
+      <el-dialog title="实验对比" :visible.sync="compareMode" width="640px" append-to-body>
+        <el-table v-if="compareRows.length === 2" :data="compareView" size="small" border>
+          <el-table-column prop="field" label="对比项" width="150" />
+          <el-table-column prop="a" label="实验 A" min-width="180" />
+          <el-table-column prop="b" label="实验 B" min-width="180" />
+          <el-table-column prop="diff" label="差异" width="110" />
+        </el-table>
+      </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
@@ -238,6 +323,23 @@ const MODE_FIGURE_GROUP = {
   counterfactual: 'attr',
   'cross-platform': 'attr'
 }
+
+/** 实验分组：把 17 类实验按「论证主题」归类，避免在页面上平铺成一长串 */
+const MODE_GROUPS = [
+  { key: 'perf', name: '模型性能与可靠性', modes: ['cv', 'tuning', 'learning-curve', 'residual', 'ablation', 'drift'] },
+  { key: 'feature', name: '特征体系论证', modes: ['importance', 'feature-enrichment', 'cross-platform'] },
+  { key: 'interval', name: '不确定性与区间', modes: ['quantile', 'conformal'] },
+  { key: 'explain', name: '可解释性与交互', modes: ['interaction', 'explanation-quality'] },
+  { key: 'trust', name: '结论可信度与决策', modes: ['counterfactual', 'refutation', 'growth', 'two-stage'] }
+]
+
+/** 推荐演示路径：4 步讲完核心叙事 */
+const DEMO_STEPS = [
+  { mode: 'cv', name: '模型可测', desc: '5 折交叉验证给出基线 R² 与方差' },
+  { mode: 'feature-enrichment', name: '加维度有效', desc: '加内容/文本特征 vs 加样本的增益对照' },
+  { mode: 'conformal', name: '区间可信', desc: '保形预测给出有限样本覆盖保证' },
+  { mode: 'refutation', name: '结论可审计', desc: '安慰剂 / 子集重估 / 跨模型三重检验' }
+]
 
 export default {
   name: 'EvaluationIndex',
@@ -250,6 +352,12 @@ export default {
       // 实验台账（data/logs/experiment_runs.jsonl）
       runs: [],
       loadingRuns: false,
+      // 台账抽屉与对比
+      ledgerVisible: false,
+      compareRows: [],
+      compareMode: false,
+      // 实验目录搜索
+      keyword: '',
       // 异步任务轮询：已耗时秒数 + 轮询定时器句柄
       elapsedSeconds: 0,
       pollTimer: null,
@@ -284,6 +392,68 @@ export default {
       if (!fig) return ''
       const group = MODE_FIGURE_GROUP[this.current] === 'attr' ? '/attribution/' : '/evaluation/'
       return group + fig + '?t=' + Date.now()
+    },
+    /* ---- 实验目录（按主题分组 + 搜索） ---- */
+    modeGroups () {
+      const groups = MODE_GROUPS.map(g => ({
+        key: g.key,
+        name: g.name,
+        items: this.modes.filter(m => g.modes.includes(m.mode))
+      })).filter(g => g.items.length)
+      const rest = this.modes.filter(m => !MODE_GROUPS.some(g => g.modes.includes(m.mode)))
+      if (rest.length) groups.push({ key: 'other', name: '其它实验', items: rest })
+      return groups
+    },
+    filteredGroups () {
+      const kw = (this.keyword || '').trim().toLowerCase()
+      if (!kw) return this.modeGroups
+      return this.modeGroups
+        .map(g => ({
+          key: g.key,
+          name: g.name,
+          items: g.items.filter(m =>
+            (m.name || '').toLowerCase().includes(kw) ||
+            (m.description || '').toLowerCase().includes(kw) ||
+            (m.tag || '').toLowerCase().includes(kw))
+        }))
+        .filter(g => g.items.length)
+    },
+    demoSteps () {
+      return DEMO_STEPS
+    },
+    /* ---- 结论卡：一句话「所以呢」 ---- */
+    lastRun () {
+      return this.runs && this.runs.length ? this.runs[0] : null
+    },
+    conclusionHeadline () {
+      const best = this.summary.find(k => k.tone === 'tone-best') || this.summary[0]
+      if (!best) return (this.currentMeta.name || '实验') + ' 已完成，结果见下方图表'
+      return best.label + '：' + best.value
+    },
+    /* ---- 台账对比视图 ---- */
+    compareView () {
+      if (!this.compareRows || this.compareRows.length !== 2) return []
+      const a = this.compareRows[0]
+      const b = this.compareRows[1]
+      const fmt = v => (v == null || v === '' ? '-' : String(v))
+      const rows = [
+        { field: '实验模式', a: fmt(a.mode), b: fmt(b.mode), diff: a.mode === b.mode ? '相同' : '不同' },
+        { field: '状态', a: fmt(a.status), b: fmt(b.status), diff: a.status === b.status ? '相同' : '不同' },
+        { field: '平台', a: fmt(a.platform), b: fmt(b.platform), diff: a.platform === b.platform ? '相同' : '不同' },
+        { field: '耗时', a: fmt(a.elapsedMs), b: fmt(b.elapsedMs), diff: '—' },
+        { field: 'traceId', a: fmt(a.traceId), b: fmt(b.traceId), diff: '—' }
+      ]
+      const pa = a.params || {}
+      const pb = b.params || {}
+      const keys = Array.from(new Set([...Object.keys(pa), ...Object.keys(pb)]))
+        .filter(k => pa[k] != null || pb[k] != null)
+        .sort()
+      keys.forEach(k => {
+        const va = fmt(pa[k])
+        const vb = fmt(pb[k])
+        rows.push({ field: '参数 ' + k, a: va, b: vb, diff: va === vb ? '相同' : '不同' })
+      })
+      return rows
     },
     /* ---- 关键指标（按模式抽取） ---- */
     summary () {
@@ -941,10 +1111,15 @@ export default {
       }
       if (row.result) {
         this.result = row.result
+        this.ledgerVisible = false
         this.$message.success('已载入 ' + row.finishedAt + ' 的实验结果')
       } else {
         this.$message.warning('该记录（' + row.status + '）没有可用结果')
       }
+    },
+    selectModeByKey (mode) {
+      const m = this.modes.find(x => x.mode === mode)
+      if (m) this.selectMode(m)
     },
     selectMode (m) {
       this.current = m.mode
@@ -1174,5 +1349,284 @@ export default {
     line-height: 1.85;
     color: #64748b;
   }
+}
+
+/* ==================== 实验中心：布局与目录 ==================== */
+.exp-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.exp-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.catalog-card {
+  width: 268px;
+  flex: 0 0 268px;
+  position: sticky;
+  top: 12px;
+
+  .section-title {
+    margin-bottom: 10px;
+  }
+}
+
+.catalog-search {
+  margin-bottom: 12px;
+}
+
+.catalog-group {
+  margin-bottom: 14px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.catalog-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: .04em;
+}
+
+.catalog-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a5b4fc;
+  background: #f1f0ff;
+  border-radius: 8px;
+  padding: 1px 7px;
+}
+
+.catalog-item {
+  border: 1px solid #e8ecf6;
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: all .18s ease;
+  background: #fff;
+
+  &:hover {
+    border-color: #c7c9fb;
+    background: #fafaff;
+  }
+
+  &.active {
+    border-color: #b9bcfb;
+    background: linear-gradient(160deg, #f7f8ff 0%, #fdf8ff 100%);
+    box-shadow: 0 6px 18px rgba(99, 102, 241, .16);
+  }
+}
+
+.catalog-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.catalog-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.catalog-tag {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: #6b5bd2;
+  background: #f6f4ff;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.catalog-desc {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #7c8798;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ==================== 推荐演示路径 ==================== */
+.demo-card {
+  margin-bottom: 16px;
+}
+
+.demo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  .section-title {
+    margin-bottom: 0;
+  }
+}
+
+.demo-hint {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.demo-steps {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.demo-step {
+  flex: 1 1 190px;
+  min-width: 190px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid #e8ecf6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all .18s ease;
+  background: #fff;
+
+  &:hover {
+    border-color: #c7c9fb;
+    transform: translateY(-1px);
+  }
+
+  &.active {
+    border-color: #b9bcfb;
+    background: linear-gradient(160deg, #f7f8ff 0%, #fdf8ff 100%);
+    box-shadow: 0 8px 22px rgba(99, 102, 241, .18);
+  }
+}
+
+.demo-idx {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #eef0ff;
+  color: #6b5bd2;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.demo-step.active .demo-idx {
+  background: #6b5bd2;
+  color: #fff;
+}
+
+.demo-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+
+.demo-desc {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #7c8798;
+}
+
+/* ==================== 结论卡 ==================== */
+.conclusion-card {
+  border-left: 3px solid #6b5bd2;
+}
+
+.conclusion-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.conclusion-badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #6b5bd2;
+  border-radius: 4px;
+  padding: 2px 8px;
+  letter-spacing: .08em;
+}
+
+.conclusion-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.conclusion-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #e8ecf6;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.foot-trace {
+  font-family: Consolas, Monaco, monospace;
+}
+
+.foot-time {
+  margin-left: auto;
+}
+
+/* ==================== 运行面板头部 ==================== */
+.run-head-text {
+  min-width: 0;
+}
+
+.run-mode-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.run-mode-tag {
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+
+.run-mode-desc {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #64748b;
+  max-width: 720px;
+}
+
+/* ==================== 台账抽屉 ==================== */
+.ledger-badge {
+  margin-left: 10px;
+}
+
+.ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 </style>
