@@ -57,13 +57,15 @@
       </el-col>
     </el-row>
 
-    <el-empty v-if="!filteredImages.length" description="该分组暂无可视化图表，切换到其他分组看看" :image-size="90" />
+    <app-empty v-if="!filteredImages.length" title="该分组暂无可视化图表" description="切换到其他分组看看" />
   </div>
 </template>
 
 <script>
+import AppEmpty from '@/components/AppEmpty'
 export default {
   name: 'EdaAnalysis',
+  components: { AppEmpty },
   data () {
     return {
       group: 'all',

@@ -322,7 +322,7 @@
               <template #default="{ row }">{{ row.source === 'batch' ? '批量' : '单条' }}</template>
             </el-table-column>
             <el-table-column prop="createTime" label="时间" width="165" />
-            <template #empty><el-empty description="暂无预测记录" :image-size="70" /></template>
+            <template #empty><app-empty compact title="暂无预测记录" /></template>
           </el-table>
           <div class="list-footer">
             <el-pagination

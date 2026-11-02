@@ -62,7 +62,7 @@
                          :format="() => row.importance.toFixed(3)" />
           </template>
         </el-table-column>
-        <template #empty><el-empty description="暂无全局归因结果" :image-size="70" /></template>
+        <template #empty><app-empty compact title="暂无全局归因结果" /></template>
       </el-table>
     </el-card>
 
@@ -156,7 +156,7 @@
           </el-col>
         </el-row>
       </template>
-      <el-empty v-else description="填写上方参数后点击「归因分析」" :image-size="90" />
+      <app-empty v-else title="还没有归因结果" description="填写上方参数后点击「归因分析」" />
     </el-card>
 
     <!-- ==================== ④ 反事实结果 ==================== -->
@@ -182,7 +182,7 @@
               </template>
             </el-table-column>
             <el-table-column prop="grade" label="预计等级" width="110" />
-            <template #empty><el-empty description="当前条件已是最优，无可调整提升项" :image-size="70" /></template>
+            <template #empty><app-empty compact title="当前条件已是最优，无可调整提升项" /></template>
           </el-table>
           <div class="non-mutable" v-if="cf.non_mutable">
             <el-icon><svg-icon icon-class="lock" /></el-icon>
@@ -196,7 +196,7 @@
           <el-image v-if="cf.figure" :src="fig('/attribution/', cf.figure, true)"
                     :preview-src-list="[fig('/attribution/', cf.figure, true)]"
                     fit="contain" class="fig-img" lazy />
-          <el-empty v-else description="无可视化（已是最优）" :image-size="70" />
+          <app-empty v-else compact title="无可视化（已是最优）" />
         </el-col>
       </el-row>
       <div v-if="refutation" class="stability-warn">
@@ -230,7 +230,7 @@
         <el-image v-if="pdp" :src="fig('/attribution/', pdp.figure, true)"
                   :preview-src-list="[fig('/attribution/', pdp.figure, true)]"
                   fit="contain" class="fig-img-lg" lazy />
-        <el-empty v-else description="选择特征后点击「生成图」" :image-size="90" />
+        <app-empty v-else title="还没有 PDP 图" description="选择特征后点击「生成图」" />
       </div>
     </el-card>
 
@@ -271,7 +271,7 @@
           </el-col>
         </el-row>
       </template>
-      <el-empty v-else description="点击「计算交互效应」运行（首次约需 20-40 秒）" :image-size="90" />
+      <app-empty v-else title="还没有交互效应结果" description="点击「计算交互效应」运行（首次约需 20-40 秒）" />
     </el-card>
   </div>
 </template>
@@ -283,12 +283,14 @@ import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
 import attributionApi from '@/api/attribution'
+import AppEmpty from '@/components/AppEmpty'
 import evaluationApi from '@/api/evaluation'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 export default {
   name: 'AttributionIndex',
+  components: { AppEmpty },
   data () {
     return {
       globalLoading: false,

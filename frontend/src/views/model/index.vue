@@ -117,7 +117,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="注册表为空，点击「同步注册表」扫描 model_cache" :image-size="70" />
+          <app-empty compact title="注册表为空" description="点击「同步注册表」扫描 model_cache" />
         </template>
       </el-table>
     </el-card>
@@ -148,7 +148,7 @@
         </el-table-column>
         <el-table-column prop="traceId" label="traceId" min-width="150" show-overflow-tooltip />
         <template #empty>
-          <el-empty description="还没有影子打分记录，先在「热度预测」页跑几次预测" :image-size="70" />
+          <app-empty compact title="还没有影子打分记录" description="先在「热度预测」页跑几次预测" />
         </template>
       </el-table>
     </el-card>
@@ -157,10 +157,12 @@
 
 <script>
 import modelApi from '@/api/model'
+import AppEmpty from '@/components/AppEmpty'
 import predictApi from '@/api/predict'
 
 export default {
   name: 'ModelGovernance',
+  components: { AppEmpty },
   data () {
     return {
       models: [],

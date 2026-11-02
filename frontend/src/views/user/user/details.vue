@@ -27,7 +27,7 @@
         <el-table :data="form.userTagList || []" size="small" stripe>
           <el-table-column type="index" label="#" width="70" />
           <el-table-column prop="tagName" label="喜好标签" />
-          <template #empty><el-empty description="暂无喜好标签记录" :image-size="70" /></template>
+          <template #empty><app-empty compact title="暂无喜好标签记录" /></template>
         </el-table>
       </el-tab-pane>
 
@@ -36,7 +36,7 @@
           <el-table-column type="index" label="#" width="70" />
           <el-table-column prop="videoName" label="视频名称" />
           <el-table-column prop="createTime" label="播放时间" width="180" />
-          <template #empty><el-empty description="暂无播放记录" :image-size="70" /></template>
+          <template #empty><app-empty compact title="暂无播放记录" /></template>
         </el-table>
       </el-tab-pane>
 
@@ -46,7 +46,7 @@
           <el-table-column prop="videoName" label="视频名称" />
           <el-table-column prop="operationName" label="操作类型" width="160" />
           <el-table-column prop="createTime" label="操作时间" width="180" />
-          <template #empty><el-empty description="暂无操作记录" :image-size="70" /></template>
+          <template #empty><app-empty compact title="暂无操作记录" /></template>
         </el-table>
       </el-tab-pane>
 
@@ -55,7 +55,7 @@
           <el-table-column type="index" label="#" width="70" />
           <el-table-column prop="title" label="推荐内容" />
           <el-table-column prop="createTime" label="推荐时间" width="180" />
-          <template #empty><el-empty description="暂无推荐记录" :image-size="70" /></template>
+          <template #empty><app-empty compact title="暂无推荐记录" /></template>
         </el-table>
       </el-tab-pane>
     </el-tabs>
@@ -65,8 +65,10 @@
 <script>
 import { mapGetters, mapState } from 'vuex'
 import userApi from '@/api/user'
+import AppEmpty from '@/components/AppEmpty'
 
 export default {
+  components: { AppEmpty },
   data () {
     return {
       tab: 'tag',

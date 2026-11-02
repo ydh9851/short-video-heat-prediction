@@ -57,7 +57,7 @@
             <el-tag size="small" type="warning">纵轴为对数刻度</el-tag>
           </div>
           <div v-if="availablePlatforms.length" ref="heatChart" class="chart-box" />
-          <el-empty v-else description="暂无已导入的平台数据，请先在「数据管理」页导入数据集" :image-size="80" />
+          <app-empty v-else title="暂无已导入的平台数据" description="请先在「数据管理」页导入数据集" />
         </el-card>
       </el-col>
       <el-col :xs="24" :lg="11">
@@ -67,7 +67,7 @@
             <el-tag size="small" type="info">Top1 / Top3 / Top10 占比</el-tag>
           </div>
           <div v-if="availablePlatforms.length" ref="concentrationChart" class="chart-box" />
-          <el-empty v-else description="暂无已导入的平台数据" :image-size="80" />
+          <app-empty v-else compact title="暂无已导入的平台数据" />
         </el-card>
       </el-col>
     </el-row>
@@ -169,6 +169,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 
 import dataApi from '@/api/data'
+import AppEmpty from '@/components/AppEmpty'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -176,6 +177,7 @@ const PLAT_COLORS = ['#6366f1', '#ef4444', '#0ea5e9', '#10b981']
 
 export default {
   name: 'PlatformComparison',
+  components: { AppEmpty },
   data () {
     return {
       loading: false,

@@ -58,7 +58,7 @@
             </div>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="暂无管理员数据" :image-size="80" /></template>
+        <template #empty><app-empty compact title="暂无管理员数据" /></template>
       </el-table>
 
       <div class="list-footer">
@@ -72,9 +72,11 @@
 import { mapGetters, mapState } from 'vuex'
 import Pagination from '@/components/Pagination'
 import userApi from '@/api/user'
+import AppEmpty from '@/components/AppEmpty'
 
 export default {
   components: { Pagination },
+  components: { AppEmpty },
   data () {
     return {
       queryParam: {
