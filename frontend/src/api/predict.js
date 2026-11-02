@@ -10,5 +10,7 @@ export default {
   // 预测记录分页查询
   logs: params => get('/api/predict/logs', params, 60000),
   // 常驻推理服务状态（UP / DEGRADED / DISABLED）
-  engine: () => get('/api/predict/engine', null, 30000)
+  engine: () => get('/api/predict/engine', null, 30000),
+  // 90% 保形预测区间（拟合集 + 校准集两段式训练，耗时数秒）
+  interval: query => post('/api/predict/interval', query, 300000)
 }

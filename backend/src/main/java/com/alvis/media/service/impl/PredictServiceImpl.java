@@ -43,6 +43,10 @@ public class PredictServiceImpl implements PredictService {
     @Value("${system.python.predictScript:}")
     private String predictScript;
 
+    /** 保形预测脚本（区间需要「拟合集 + 校准集」两段式训练，故与普通预测分开） */
+    @Value("${system.python.conformalScript:}")
+    private String conformalScript;
+
     private static final Logger log = LoggerFactory.getLogger(PredictServiceImpl.class);
 
     private final StringRedisTemplate redisTemplate;
@@ -235,6 +239,57 @@ public class PredictServiceImpl implements PredictService {
             }
         }
         throw new IllegalStateException("未配置 Python 热度预测脚本路径（system.python.predictScript）");
+    }
+
+    /**
+     * 90% 保形预测区间（Split Conformal + Mondrian 条件覆盖）。
+     * 与普通预测分开实现：保形区间需要「拟合集 + 校准集」两段式训练，
+     * 校准残差分位数 q̂ 决定区间宽度，并在样本可交换假设下给出有限样本覆盖保证。
+     */
+    @Override
+    public JsonNode interval(PredictRequestVM req) {
+        if (req.getVideoCategory() == null || req.getVideoCategory().trim().isEmpty()) {
+            req.setVideoCategory("美食");
+        }
+        if (req.getAuthorFans() == null || req.getAuthorFans() < 0) {
+            req.setAuthorFans(0.0);
+        }
+        if (req.getPublishHour() == null) req.setPublishHour(20);
+        if (req.getPublishWeekday() == null) req.setPublishWeekday(5);
+        if (req.getPublishMonth() == null) req.setPublishMonth(6);
+        if (conformalScript == null || conformalScript.trim().isEmpty()) {
+            throw new IllegalStateException("未配置保形预测脚本（system.python.conformalScript）");
+        }
+        List<String> args = new ArrayList<>();
+        args.add("--mode");
+        args.add("point");
+        args.add("--model");
+        args.add(req.getModel() == null || req.getModel().trim().isEmpty() ? "lgbm" : req.getModel().trim());
+        args.add("--alpha");
+        args.add("0.1");
+        args.add("--category");
+        args.add(URLEncoder.encode(req.getVideoCategory().trim(), StandardCharsets.UTF_8));
+        args.add("--fans");
+        args.add(String.valueOf(req.getAuthorFans()));
+        args.add("--hour");
+        args.add(String.valueOf(req.getPublishHour()));
+        args.add("--weekday");
+        args.add(String.valueOf(req.getPublishWeekday()));
+        args.add("--month");
+        args.add(String.valueOf(req.getPublishMonth()));
+        try {
+            String out = runner.run(conformalScript, args, 180);
+            String json = PythonCliRunner.lastJsonLine(out);
+            JsonNode node = om.readTree(json);
+            if (node.hasNonNull("error")) {
+                throw new RuntimeException(node.path("error").asText());
+            }
+            return node;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("计算保形预测区间失败：" + e.getMessage(), e);
+        }
     }
 
     private String callPython(PredictRequestVM req) throws Exception {

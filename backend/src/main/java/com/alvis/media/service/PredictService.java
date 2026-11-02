@@ -15,4 +15,10 @@ public interface PredictService {
 
     /** 各已缓存模型的评估指标（多模型对照实验） */
     JsonNode metrics();
+
+    /**
+     * 90% 保形预测区间（Split Conformal + Mondrian 条件覆盖）。
+     * 返回 {prediction, lo, hi, grade, qhat_used, target_coverage, ...}。
+     */
+    JsonNode interval(PredictRequestVM req);
 }

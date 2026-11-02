@@ -25,6 +25,7 @@ import sys
 import traceback
 
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import predict_api as P  # noqa: E402
@@ -107,6 +108,21 @@ def _quantile_baseline(alpha, X_test, y_test_raw):
     }
 
 
+def _predict_point(mdl, meta, point):
+    """用与训练同口径的特征构造，预测单条视频的 log 热度。"""
+    row = pd.DataFrame([{
+        "video_category": str(point.get("category")),
+        "hour_bucket": P._hour_bucket(point.get("hour")),
+        "author_fans_log": np.log1p(max(float(point.get("fans") or 0.0), 0.0)),
+        "publish_hour": float(point.get("hour")),
+        "publish_weekday": float(point.get("weekday")),
+        "publish_month": float(point.get("month")),
+        "is_weekend": 1 if int(point.get("weekday")) in (5, 6) else 0,
+    }])
+    X = P._encode_frame(row, meta["cat_maps"], meta["cat_modes"])
+    return float(mdl.predict(X)[0])
+
+
 def mode_conformal(model="lgbm", alpha=0.1, platform=None):
     """保形预测主流程：训练 → 校准 → 在测试集上评估覆盖与宽度 → 与分位回归对照。"""
     X_train, y_train, X_test, y_test_log, _meta = P._prepare(platform=platform)
@@ -179,17 +195,88 @@ def mode_conformal(model="lgbm", alpha=0.1, platform=None):
     }
 
 
+def mode_point(model="lgbm", alpha=0.1, platform=None, point=None):
+    """单点区间预测：按同样的「拟合集 + 校准集」流程求出 q̂，再给出一条视频的区间。
+
+    与 mode_conformal 的区别：不评估测试集覆盖率（那部分由实验给出），
+    只做「给定输入 → 返回预测值与 90% 区间」，供业务页面在线调用。
+    """
+    if not point:
+        return {"mode": "point", "error": "缺少预测输入"}
+    X_train, y_train, _X_test, _y_test, meta = P._prepare(platform=platform)
+    if len(y_train) == 0:
+        return {"mode": "point", "error": "当前平台没有训练数据"}
+
+    X_fit, y_fit, X_cal, y_cal = _split_train_calib(X_train, y_train)
+    mdl = P.build_model(model, X_fit, y_fit)
+
+    score_cal = np.abs(y_cal - mdl.predict(X_cal))
+    q_global = _qhat(score_cal, alpha)
+
+    pred_cal_log = mdl.predict(X_cal)
+    groups = _grade_groups(np.expm1(pred_cal_log))
+    q_by_grade = {}
+    for g in np.unique(groups):
+        mask = groups == g
+        if int(mask.sum()) >= MIN_GROUP_SIZE:
+            q_by_grade[str(g)] = _qhat(score_cal[mask], alpha)
+
+    pred_log = _predict_point(mdl, meta, point)
+    pred_raw = float(np.expm1(pred_log))
+    group = str(_grade_groups(np.array([pred_raw]))[0])
+    q_used = q_by_grade.get(group, q_global)
+    lo, hi = _interval_raw(np.array([pred_log]), q_used)
+
+    return {
+        "mode": "point",
+        "model": model,
+        "alpha": alpha,
+        "target_coverage": 1 - alpha,
+        "qhat_log": q_global,
+        "mondrian_qhat": q_by_grade,
+        "prediction_log": pred_log,
+        "prediction": pred_raw,
+        "lo": float(lo[0]),
+        "hi": float(hi[0]),
+        "grade": group,
+        "mondrian_group": group,
+        "qhat_used": q_used,
+        "note": "区间由保形法给出：在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α；"
+                "Mondrian 分组按预测热度等级选取 q̂，未命中则回退全局 q̂",
+    }
+
+
 def main():
+    # Windows 控制台默认 GBK，输出含 ≥ / − 的中文说明会抛 UnicodeEncodeError
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     ap = argparse.ArgumentParser(description="短视频热度预测的保形预测区间")
-    ap.add_argument("--mode", default="conformal", choices=["conformal"])
+    ap.add_argument("--mode", default="conformal", choices=["conformal", "point"])
     ap.add_argument("--model", default="lgbm",
                     choices=["lgbm", "xgb", "rf", "lr", "knn", "dt"])
     ap.add_argument("--alpha", type=float, default=0.1, help="显著性水平，0.1 对应 90%% 覆盖")
     ap.add_argument("--platform", default=None)
+    ap.add_argument("--category", default=None, help="单点预测的视频类别（--mode point）")
+    ap.add_argument("--fans", type=float, default=0.0, help="单点预测的作者粉丝数")
+    ap.add_argument("--hour", type=int, default=20, help="单点预测的发布小时")
+    ap.add_argument("--weekday", type=int, default=5, help="单点预测的发布星期（0=周一）")
+    ap.add_argument("--month", type=int, default=6, help="单点预测的发布月份")
     args = ap.parse_args()
 
     try:
-        result = mode_conformal(model=args.model, alpha=args.alpha, platform=args.platform)
+        if args.mode == "point":
+            from urllib.parse import unquote_plus
+            category = unquote_plus(args.category) if args.category and "%" in args.category else args.category
+            result = mode_point(
+                model=args.model, alpha=args.alpha, platform=args.platform,
+                point={
+                    "category": category, "fans": args.fans, "hour": args.hour,
+                    "weekday": args.weekday, "month": args.month,
+                })
+        else:
+            result = mode_conformal(model=args.model, alpha=args.alpha, platform=args.platform)
         print(json.dumps(result, ensure_ascii=False))
     except Exception as exc:
         print(json.dumps({"error": str(exc), "trace": traceback.format_exc(),

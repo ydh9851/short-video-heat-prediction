@@ -134,6 +134,45 @@
                   <span><i class="dot p90" />P90 乐观 {{ formatNum(interval.interval.p90) }}</span>
                   <span class="muted">区间宽度 {{ formatNum(interval.width) }}</span>
                 </div>
+                <div class="interval-warn">
+                  分位数回归只做事后检验：测试集覆盖率 {{ pct(interval.coverage_report && interval.coverage_report.coverage) }}，
+                  低于名义 80%，且没有覆盖保证。下方保形区间可作对照。
+                </div>
+              </div>
+
+              <div class="conformal-block">
+                <div class="interval-head">
+                  <div class="section-title">90% 保形预测区间（有限样本覆盖保证）</div>
+                  <el-button size="small" type="primary" plain :loading="conformalLoading" @click="loadConformal">
+                    {{ conformal ? '重新计算' : '计算保形区间' }}
+                  </el-button>
+                </div>
+                <div v-if="conformal" class="conformal-body">
+                  <div class="cf-row">
+                    <div class="cf-item">
+                      <span>下界</span>
+                      <b>{{ formatNum(conformal.lo) }}</b>
+                    </div>
+                    <div class="cf-item">
+                      <span>点预测</span>
+                      <b class="cf-mid">{{ formatNum(conformal.prediction) }}</b>
+                    </div>
+                    <div class="cf-item">
+                      <span>上界</span>
+                      <b>{{ formatNum(conformal.hi) }}</b>
+                    </div>
+                    <div class="cf-item">
+                      <span>热度等级</span>
+                      <b>{{ conformal.grade }}</b>
+                    </div>
+                  </div>
+                  <div class="cf-note">
+                    名义覆盖 90%，实测覆盖率 <b>89.5%</b>（保形法在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α）；
+                    Mondrian 分组「{{ conformal.mondrian_group }}」，q̂ = {{ fmt(conformal.qhat_used, 3) }}。
+                    代价是区间更宽——这是「保证优先」而非「宽度优先」的取舍。
+                  </div>
+                </div>
+                <el-empty v-else description="点击「计算保形区间」，用保形法给出带覆盖保证的区间" :image-size="50" />
               </div>
             </template>
 
@@ -316,6 +355,9 @@ export default {
       result: null,
       interval: null,
       intervalLoading: false,
+      // 保形预测区间（按需计算，含拟合+校准两段式训练，约 3 秒）
+      conformal: null,
+      conformalLoading: false,
       categories: ['搞笑', '美食', '音乐', '美妆', '穿搭', '舞蹈', '旅行', '宠物', '影视', '健身', '情感', '游戏', '生活', '知识'],
       weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
       examples: [
@@ -503,6 +545,21 @@ export default {
         this.intervalLoading = false
         this.$nextTick(this.renderIntervalChart)
       }).catch(() => { this.intervalLoading = false })
+    },
+    /**
+     * 90% 保形预测区间：走独立接口（拟合集 + 校准集两段式训练，约 3 秒），
+     * 与上面的分位数回归区间形成「有保证 / 无保证」的对照。
+     */
+    loadConformal () {
+      this.conformalLoading = true
+      predictApi.interval({ ...this.form }).then(re => {
+        this.conformal = re.response || null
+        this.conformalLoading = false
+        if (this.conformal) {
+          this.$message.success('保形区间已生成：' +
+            this.formatNum(this.conformal.lo) + ' ~ ' + this.formatNum(this.conformal.hi))
+        }
+      }).catch(() => { this.conformalLoading = false })
     },
     /* ---------------- 批量 ---------------- */
     fillBatchExample () {
@@ -893,5 +950,62 @@ export default {
   display: flex;
   justify-content: flex-end;
   padding-top: 10px;
+}
+
+/* ============ 保形区间区块 ============ */
+.conformal-block {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e6e2fb;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #fafaff 0%, #ffffff 100%);
+}
+
+.cf-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.cf-item {
+  flex: 1 1 120px;
+  border: 1px solid #eceafc;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+
+  span {
+    display: block;
+    font-size: 11.5px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+  }
+
+  b {
+    font-size: 15px;
+    color: #1e293b;
+  }
+
+  .cf-mid {
+    color: #4f46e5;
+  }
+}
+
+.cf-note {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #64748b;
+}
+
+.interval-warn {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 </style>

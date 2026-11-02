@@ -31,6 +31,15 @@ public class PredictController extends BaseApiController {
     private final HeatLogService heatLogService;
     private final PythonEngineClient engineClient;
 
+    /**
+     * 90% 保形预测区间：给定同样的输入，返回点预测与保形区间。
+     * 区间在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α（实测覆盖率见实验中心）。
+     */
+    @PostMapping("/interval")
+    public RestResponse<JsonNode> interval(@RequestBody PredictRequestVM req) {
+        return RestResponse.ok(predictService.interval(req));
+    }
+
     /** 常驻推理服务状态：DISABLED（未配置）/ UP / DEGRADED（熔断中，已降级回 CLI） */
     @GetMapping("/engine")
     public RestResponse<Map<String, Object>> engine() {
