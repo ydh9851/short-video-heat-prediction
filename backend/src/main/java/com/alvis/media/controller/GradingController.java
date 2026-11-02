@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.GradingService;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 热度分级接口（K-Means 聚类定等级 + 分类模型预测等级）
  */
 @RestController("GradingController")
+@Tag(name = "热度分级")
 @RequestMapping(value = "/api/grade")
 @AllArgsConstructor
 public class GradingController extends BaseApiController {

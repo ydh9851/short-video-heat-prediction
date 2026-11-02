@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.EvaluationService;
@@ -34,6 +35,7 @@ import java.util.Map;
  * </ul>
  */
 @RestController("EvaluationController")
+@Tag(name = "模型评估与实验")
 @RequestMapping(value = "/api/evaluation")
 @AllArgsConstructor
 public class EvaluationController extends BaseApiController {

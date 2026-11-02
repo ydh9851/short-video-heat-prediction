@@ -1,6 +1,7 @@
 package com.alvis.media.controller.admin;
 
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.configuration.property.SystemConfig;
@@ -31,6 +32,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @RequestMapping("/api/admin/upload")
 @RestController("AdminUploadController")
+@Tag(name = "文件上传")
 public class UploadController extends BaseApiController {
 
     private final FileUpload fileUpload;

@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.domain.User;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController("PredictController")
+@Tag(name = "热度预测")
 @RequestMapping(value = "/api/predict")
 @AllArgsConstructor
 public class PredictController extends BaseApiController {

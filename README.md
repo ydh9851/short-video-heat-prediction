@@ -90,6 +90,7 @@
 | 答辩演示 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
 | 错误可追溯 | 前端统一错误提示携带后端 `X-Trace-Id`，出错时凭 traceId 直接在后端日志定位；业务错误与网络错误分别处理 |
 | 前端构建 | Vite 手动分包：echarts / element-plus / vue / axios 独立 chunk，业务代码迭代无需用户重新下载第三方库 |
+| 接口文档 | **Swagger UI**（`/swagger-ui/index.html`，可直接试调）+ OpenAPI JSON（`/v3/api-docs`），63 个接口按 10 组业务分类；静态文档 `docs/API.md` 由 `python tools/api_docs.py` 依据运行时契约自动生成，不会与代码脱节 |
 | 测试 | `mvn test` 可直接运行：统一响应体、`PythonCliRunner`（含超时强杀、traceId 透传回归用例）、RSA 加解密；surefire 已取消全局 `skipTests` |
 
 ---

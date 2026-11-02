@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.AttributionService;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * 热度归因分析（SHAP 可解释性）接口
  */
 @RestController("AttributionController")
+@Tag(name = "归因分析")
 @RequestMapping(value = "/api/attribution")
 @AllArgsConstructor
 public class AttributionController extends BaseApiController {

@@ -1,5 +1,6 @@
 package com.alvis.media.controller.admin;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.domain.other.KeyValue;
@@ -28,6 +29,7 @@ import java.util.UUID;
  *@author 奇趣
  */
 @RestController("AdminUserController")
+@Tag(name = "用户管理")
 @RequestMapping(value = "/api/admin/user")
 @AllArgsConstructor
 public class UserController extends BaseApiController {

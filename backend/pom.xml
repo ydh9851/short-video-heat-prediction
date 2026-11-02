@@ -166,7 +166,12 @@
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
-    </dependencies>
+        <!-- 在线接口文档：Swagger UI（/swagger-ui.html）与 OpenAPI JSON（/v3/api-docs） -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.8.9</version>
+        </dependency>    </dependencies>
 
     <build>
         <plugins>

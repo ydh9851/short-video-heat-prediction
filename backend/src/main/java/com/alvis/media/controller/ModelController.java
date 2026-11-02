@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.ModelRegistryService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 模型治理接口：注册表（版本 + 阶段）与影子模式（线上/候选模型并行打分差异）。
  */
 @RestController("ModelController")
+@Tag(name = "模型治理")
 @RequestMapping(value = "/api/models")
 @AllArgsConstructor
 public class ModelController extends BaseApiController {

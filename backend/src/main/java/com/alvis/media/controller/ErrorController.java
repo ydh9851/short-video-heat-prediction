@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.SystemCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
+@Tag(name = "错误处理")
 public class ErrorController implements org.springframework.boot.web.servlet.error.ErrorController {
 
     @RequestMapping(value = "/error", produces = {MediaType.APPLICATION_JSON_VALUE})

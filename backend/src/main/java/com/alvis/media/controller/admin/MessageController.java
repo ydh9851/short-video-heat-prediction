@@ -1,6 +1,7 @@
 package com.alvis.media.controller.admin;
 
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.domain.Message;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController("AdminMessageController")
+@Tag(name = "消息管理")
 @RequestMapping(value = "/api/admin/message")
 @AllArgsConstructor
 public class MessageController extends BaseApiController {

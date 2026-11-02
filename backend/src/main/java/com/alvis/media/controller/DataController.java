@@ -1,5 +1,6 @@
 package com.alvis.media.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.DataService;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 缺省时使用数据集注册表中的 defaultPlatform。</p>
  */
 @RestController("DataController")
+@Tag(name = "数据治理")
 @RequestMapping(value = "/api/data")
 @AllArgsConstructor
 public class DataController extends BaseApiController {

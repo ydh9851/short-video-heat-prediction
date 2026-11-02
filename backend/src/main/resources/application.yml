@@ -57,6 +57,11 @@ system:
     - /api/admin/upload/auth
     - /api/student/user/register
     - /api/admin/video/**
+    # 接口文档（Swagger UI 与 OpenAPI JSON）
+    - /v3/api-docs/**
+    - /swagger-ui/**
+    - /swagger-ui.html
+    - /webjars/**
   # 注：密码已改为 BCrypt 单向哈希存储（见 PasswordConfig），不再需要 RSA 密钥对；
   # system.pwdKey 仅保留给仍使用 RsaUtil 的历史工具类，不参与登录流程。
   pwdKey:
@@ -83,6 +88,21 @@ pagehelper:
 
 #mybatis datasource default HikariPool
 spring:
+  # 在线接口文档：Swagger UI（/swagger-ui.html）与 OpenAPI JSON（/v3/api-docs）
+  springdoc:
+    api-docs:
+      path: /v3/api-docs
+    swagger-ui:
+      path: /swagger-ui.html
+      tags-sorter: alpha
+      operations-sorter: alpha
+    info:
+      title: 短视频热度预测与归因分析系统 API
+      version: 1.0.0
+      description: |
+        覆盖热度预测、热度分级、可解释归因、17 类可复现实验、数据治理与模型治理六组能力。
+        所有响应统一为 { code, message, response } 三字段结构，响应头携带 X-Trace-Id 便于日志定位。
+
   servlet:
     multipart:
       # 文件最大限制
