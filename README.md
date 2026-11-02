@@ -29,6 +29,7 @@
 | 🖥️ 数据大屏 | 跨平台样本量对比、类别 Top10、热度等级分布、热度分位大屏可视化 |
 | 🧪 EDA | 特征分布可视化、相关性热力图 |
 | 📝 报告导出 | 归因页一键生成**自包含 HTML 审计报告**（预测值 + 90% 区间 + 单条/全局 SHAP + 反事实建议 + 模型版本 + traceId，图片内嵌可离线分享）；另支持 CSV 导出 |
+| 🎚️ 保形区间 | 预测页可在线计算 **90% 保形预测区间**（Split Conformal + Mondrian 条件覆盖，实测覆盖率 89.5%），与分位数回归区间（76.4%，无保证）并列对照 |
 
 ---
 
@@ -58,6 +59,10 @@
 | 实验治理 | 实验完成/失败自动追加 `data/logs/experiment_runs.jsonl`（MLflow Tracking 的 run 概念），`/api/evaluation/runs` 可回看历史，一条记录对齐参数、耗时、traceId 与结果 |
 | 限流与指标 | `/api/predict` 等昂贵接口按 IP 令牌桶限流（默认 10 QPS / 突发 20，超限返回 429 带 traceId）；Micrometer 指标经 `/actuator/prometheus` 暴露（`predict_latency_seconds{source=engine|cli}`、`predict_requests_total`、`predict_engine_fallback`） |
 | 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + 后端测试 + 前端构建三阶段 |
+| 前端体验 | **实验中心**（17 类实验分组目录 + 推荐演示路径 + 结论卡 + 台账对比）、**模型治理页**（版本阶段 / 影子偏差 / 引擎状态）、首页关键指标标注来源实验、数据质量首屏徽章速览 |
+| 答辩演示 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
+| 错误可追溯 | 前端统一错误提示携带后端 `X-Trace-Id`，出错时凭 traceId 直接在后端日志定位；业务错误与网络错误分别处理 |
+| 前端构建 | Vite 手动分包：echarts / element-plus / vue / axios 独立 chunk，业务代码迭代无需用户重新下载第三方库 |
 | 测试 | `mvn test` 可直接运行：统一响应体、`PythonCliRunner`（含超时强杀、traceId 透传回归用例）、RSA 加解密；surefire 已取消全局 `skipTests` |
 
 ---
