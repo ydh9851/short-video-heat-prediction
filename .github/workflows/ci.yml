@@ -19,6 +19,21 @@ jobs:
           python -m compileall -q algorithm
           echo "algorithm 目录语法检查通过"
 
+  python-tests:
+    name: 算法单元测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 安装轻量依赖并运行单元测试
+        # 被测模块（保形预测 / 质量门禁 / 解释质量 / 特征工程）顶层只依赖
+        # numpy、pandas、scipy，无需安装 lightgbm、shap 等重型依赖，秒级完成。
+        run: |
+          python -m pip install --quiet numpy pandas scipy pytest
+          python -m pytest algorithm/tests -q
+
   backend:
     name: 后端构建与测试
     runs-on: ubuntu-latest

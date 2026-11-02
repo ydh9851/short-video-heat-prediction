@@ -1,0 +1,8 @@
+# 开发期依赖（运行系统本身不需要，仅用于本地测试与密钥生成）
+-r requirements.txt
+
+# 单元测试
+pytest==9.2.0
+
+# 密钥生成脚本（tools/gen_rsa_keys.py）
+cryptography==50.0.2
