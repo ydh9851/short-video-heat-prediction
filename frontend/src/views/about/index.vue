@@ -15,9 +15,9 @@
           <strong>「为什么这条视频会火 / 不火」</strong>，最终映射为可执行的运营建议。
         </p>
         <div class="hero-meta">
-          <span>作者：毕业设计作者</span>
-          <span>指导教师：指导教师</span>
-          <span>计算机类</span>
+          <span>毕业设计作品</span>
+          <span>智能媒体工程学院</span>
+          <span>技术栈：Vue 3 + Spring Boot + Python</span>
         </div>
       </div>
       <div class="hero-right">
