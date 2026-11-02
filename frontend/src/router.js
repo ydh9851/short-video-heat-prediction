@@ -35,6 +35,7 @@ const constantRoutes = [
   },
   {
     path: '/screen',
+    redirect: '/screen/index',
     component: Layout,
     children: [
       {
@@ -47,6 +48,7 @@ const constantRoutes = [
   },
   {
     path: '/about',
+    redirect: '/about/index',
     component: Layout,
     name: 'AboutPage',
     children: [
@@ -60,6 +62,7 @@ const constantRoutes = [
   },
   {
     path: '/user',
+    redirect: '/user/user/list',
     component: Layout,
     name: 'UserPage',
     meta: {
@@ -116,6 +119,7 @@ const constantRoutes = [
   },
   {
     path: '/analysis',
+    redirect: '/analysis/eda',
     component: Layout,
     name: 'Analysis',
     meta: {
@@ -134,6 +138,7 @@ const constantRoutes = [
   },
   {
     path: '/data',
+    redirect: '/data/index',
     component: Layout,
     name: 'DataPage',
     meta: {
@@ -157,6 +162,7 @@ const constantRoutes = [
   },
   {
     path: '/predict',
+    redirect: '/predict/index',
     component: Layout,
     name: 'PredictPage',
     meta: {
@@ -174,6 +180,7 @@ const constantRoutes = [
   },
   {
     path: '/attribution',
+    redirect: '/attribution/index',
     component: Layout,
     name: 'AttributionPage',
     meta: {
@@ -191,6 +198,7 @@ const constantRoutes = [
   },
   {
     path: '/grading',
+    redirect: '/grading/index',
     component: Layout,
     name: 'GradingPage',
     meta: {
@@ -208,6 +216,7 @@ const constantRoutes = [
   },
   {
     path: '/evaluation',
+    redirect: '/evaluation/index',
     component: Layout,
     name: 'EvaluationPage',
     children: [
@@ -221,6 +230,7 @@ const constantRoutes = [
   },
   {
     path: '/model',
+    redirect: '/model/index',
     component: Layout,
     name: 'ModelPage',
     children: [
@@ -234,6 +244,7 @@ const constantRoutes = [
   },
   {
     path: '/profile',
+    redirect: '/profile/index',
     component: Layout,
     hidden: true,
     children: [
