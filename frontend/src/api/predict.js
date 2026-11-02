@@ -8,5 +8,7 @@ export default {
   // 多模型对照：各模型评估指标
   metrics: () => get('/api/predict/metrics', null, 120000),
   // 预测记录分页查询
-  logs: params => get('/api/predict/logs', params, 60000)
+  logs: params => get('/api/predict/logs', params, 60000),
+  // 常驻推理服务状态（UP / DEGRADED / DISABLED）
+  engine: () => get('/api/predict/engine', null, 30000)
 }

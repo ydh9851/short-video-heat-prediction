@@ -215,7 +215,20 @@ const constantRoutes = [
         path: 'index',
         component: () => import('@/views/evaluation/index'),
         name: 'EvaluationIndex',
-        meta: { title: '模型评估', icon: 'skill', group: '模型与归因', noCache: true }
+        meta: { title: '实验中心', icon: 'skill', group: '模型与归因', noCache: true }
+      }
+    ]
+  },
+  {
+    path: '/model',
+    component: Layout,
+    name: 'ModelPage',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/model/index'),
+        name: 'ModelIndex',
+        meta: { title: '模型治理', icon: 'lock', group: '模型与归因', noCache: true }
       }
     ]
   },

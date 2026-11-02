@@ -25,6 +25,35 @@
       </div>
     </div>
 
+    <!-- ============ 质量门禁速览 ============ -->
+    <div v-if="quality" class="quality-strip">
+      <div class="strip-head">
+        <span class="strip-title">数据质量门禁</span>
+        <el-tag size="mini" :type="qualityTag(quality.status)" effect="dark">{{ quality.status }}</el-tag>
+        <span class="muted">
+          通过 {{ quality.passed }} / {{ quality.summary.total }} 项
+          <template v-if="quality.stats && quality.stats.psi != null">
+            · 热度分布 PSI {{ quality.stats.psi.toFixed(4) }}
+          </template>
+          <template v-if="quality.stats && quality.stats.rows">
+            · {{ Number(quality.stats.rows).toLocaleString() }} 行
+          </template>
+        </span>
+      </div>
+      <div class="strip-chips">
+        <el-tooltip
+          v-for="c in quality.checks"
+          :key="c.name"
+          :content="c.detail"
+          placement="top"
+        >
+          <span class="chip" :class="chipClass(c.status)">
+            <i class="dot" />{{ c.name }}
+          </span>
+        </el-tooltip>
+      </div>
+    </div>
+
     <el-alert
       v-if="platforms.length && !currentPlatformMeta.available"
       type="warning"
@@ -71,23 +100,18 @@
       </el-table>
     </el-card>
 
-    <!-- ============ 模型版本与影子对比 ============ -->
+    <!-- ============ 模型治理入口 ============ -->
     <el-card shadow="never" class="raw-card">
       <div class="list-toolbar">
-        <div class="section-title">模型版本与影子对比</div>
+        <div class="section-title">模型治理</div>
         <div class="raw-actions">
-          <el-tag v-if="shadow" size="small" type="info" effect="plain">
-            影子：{{ shadow.primaryModel || '线上' }} vs {{ shadow.shadowModel }}
+          <el-tag v-if="shadow && shadow.count" size="small" type="info" effect="plain">
+            影子：{{ shadow.primaryModel || '线上' }} vs {{ shadow.shadowModel }} · 平均偏差 {{ shadow.meanAbsDiffPct }}%
           </el-tag>
-          <span v-if="shadow && shadow.count" class="muted">
-            {{ shadow.count }} 次对比 · 平均偏差 {{ shadow.meanAbsDiffPct }}% · P90 {{ shadow.p90AbsDiffPct }}%
-          </span>
-          <el-button size="small" :loading="syncingModels" @click="syncModels">同步注册表</el-button>
+          <el-button size="small" type="primary" plain @click="$router.push('/model/index')">
+            前往模型治理页
+          </el-button>
         </div>
-      </div>
-      <div class="muted raw-hint">
-        版本号 = 特征版本 + 缓存文件时间，特征一变或模型重训即产生新版本；影子模式让候选模型对真实请求并行打分，
-        只记录与线上模型的差异，不改变返回结果。
       </div>
       <el-table :data="models" size="small" v-loading="loadingModels">
         <el-table-column prop="model" label="模型" width="90" />
@@ -104,12 +128,6 @@
         </el-table-column>
         <el-table-column label="版本数" width="90" prop="versionCount" />
         <el-table-column prop="trainedAt" label="训练时间" width="170" />
-        <el-table-column label="操作" width="110">
-          <template #default="{ row }">
-            <el-button link type="primary" size="small" :disabled="row.versionCount < 2"
-                       @click="rollbackModel(row)">回滚</el-button>
-          </template>
-        </el-table-column>
       </el-table>
     </el-card>
 
@@ -417,16 +435,15 @@ export default {
         this.loadModels()
       }).catch(() => { this.syncingModels = false })
     },
-    rollbackModel (row) {
-      modelApi.rollback(row.model).then(() => {
-        this.$message.success(row.model + ' 已回滚到上一版本')
-        this.loadModels()
-      }).catch(() => this.$message.error('回滚失败：' + row.model + ' 只有一个版本'))
-    },
     qualityTag (status) {
       if (status === 'PASS') return 'success'
       if (status === 'WARN') return 'warning'
       return 'danger'
+    },
+    chipClass (status) {
+      if (status === 'PASS') return 'chip-pass'
+      if (status === 'WARN') return 'chip-warn'
+      return 'chip-fail'
     },
     runQuality () {
       this.checkingQuality = true
@@ -824,5 +841,70 @@ export default {
   .chart-box {
     height: 260px;
   }
+}
+
+/* ============ 质量门禁速览条 ============ */
+.quality-strip {
+  border: 1px solid #e8ecf6;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.strip-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.strip-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.strip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: default;
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+.chip-pass {
+  color: #16a34a;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.chip-warn {
+  color: #d97706;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.chip-fail {
+  color: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 </style>

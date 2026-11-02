@@ -106,6 +106,16 @@ def summary(reg):
             "model": name,
             "activeVersion": active,
             "versionCount": len(versions),
+            # 历史版本清单（新→旧），供前端做版本切换与回滚
+            "versions": [
+                {
+                    "version": v.get("version"),
+                    "stage": v.get("stage"),
+                    "r2": v.get("r2"),
+                    "trainedAt": v.get("trainedAt"),
+                }
+                for v in reversed(versions)
+            ],
             "stage": cur.get("stage"),
             "r2": cur.get("r2"),
             "mae": cur.get("mae"),
