@@ -111,7 +111,7 @@ CREATE TABLE `t_user`  (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_uuid` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `user_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '用户名',
-  `password` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'RSA 加密后的密码密文（2048 位密钥需 344 字符）',
+  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'BCrypt 单向哈希（60 字符），不可逆',
   `real_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '真实姓名',
   `age` int(11) NULL DEFAULT NULL,
   `sex` tinyint(1) NULL DEFAULT NULL COMMENT '1.男 0女',

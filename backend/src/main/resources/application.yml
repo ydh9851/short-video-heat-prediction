@@ -57,10 +57,9 @@ system:
     - /api/admin/upload/auth
     - /api/student/user/register
     - /api/admin/video/**
+  # 注：密码已改为 BCrypt 单向哈希存储（见 PasswordConfig），不再需要 RSA 密钥对；
+  # system.pwdKey 仅保留给仍使用 RsaUtil 的历史工具类，不参与登录流程。
   pwdKey:
-    # RSA 密钥对用于密码的可逆加解密（存储侧）。私钥一旦入库即等于所有密码可被还原，
-    # 因此私钥不随仓库分发：请执行 python tools/gen_rsa_keys.py 生成并写入本地
-    # application-local.yml（该文件已被 .gitignore 忽略），或用环境变量注入。
     publicKey: ${RSA_PUBLIC_KEY:}
     privateKey: ${RSA_PRIVATE_KEY:}
   wx:
@@ -84,11 +83,6 @@ pagehelper:
 
 #mybatis datasource default HikariPool
 spring:
-  # 本地私有配置（RSA 密钥对）不入库，由 tools/gen_rsa_keys.py 生成到
-  # backend/src/main/resources/application-local.yml；文件不存在时静默跳过。
-  config:
-    import: "optional:classpath:application-local.yml"
-
   servlet:
     multipart:
       # 文件最大限制

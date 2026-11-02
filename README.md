@@ -85,7 +85,7 @@
 | 实验治理 | 实验完成/失败自动追加 `data/logs/experiment_runs.jsonl`（MLflow Tracking 的 run 概念），`/api/evaluation/runs` 可回看历史，一条记录对齐参数、耗时、traceId 与结果 |
 | 限流与指标 | `/api/predict` 等昂贵接口按 IP 令牌桶限流（默认 10 QPS / 突发 20，超限返回 429 带 traceId）；Micrometer 指标经 `/actuator/prometheus` 暴露（`predict_latency_seconds{source=engine|cli}`、`predict_requests_total`、`predict_engine_fallback`） |
 | 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + **算法单元测试** + 后端测试 + 前端构建四阶段 |
-| 凭据管理 | RSA 私钥与第三方凭据**一律不入库**：由 `tools/gen_rsa_keys.py` 生成到被忽略的 `application-local.yml`，或用 `RSA_PUBLIC_KEY` / `RSA_PRIVATE_KEY` 环境变量注入；数据库口令同样走环境变量 |
+| 凭据管理 | 密码以 **BCrypt 单向哈希**入库（不可逆、自带随机盐）；数据库口令与第三方凭据一律走环境变量（`DB_PASSWORD` / `WX_APPID`），仓库内不含任何真实凭据；新增/修改用户时自动加盐哈希，登录走 `PasswordEncoder.matches` |
 | 前端体验 | **实验中心**（17 类实验分组目录 + 推荐演示路径 + 结论卡 + 台账对比）、**模型治理页**（版本阶段 / 影子偏差 / 引擎状态）、首页关键指标标注来源实验、数据质量首屏徽章速览 |
 | 答辩演示 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
 | 错误可追溯 | 前端统一错误提示携带后端 `X-Trace-Id`，出错时凭 traceId 直接在后端日志定位；业务错误与网络错误分别处理 |
@@ -183,11 +183,7 @@ setup_venv.cmd
 :: 2. 初始化数据库（MySQL 8.0 已运行后执行一次）
 mysql -u root -p < sql/short_video_heat_db.sql
 
-:: 3. 生成登录用的 RSA 密钥对（首次运行必须执行一次）
-::    结果写入 backend/src/main/resources/application-local.yml（已被 .gitignore 忽略）
-.venv\Scripts\python.exe tools\gen_rsa_keys.py
-
-:: 4. 后端 + 前端 + 重启
+:: 3. 后端 + 前端 + 重启
 restart_backend.cmd
 ```
 
@@ -196,19 +192,17 @@ restart_backend.cmd
 - 后台首页：http://localhost:8000/admin
 - 默认账号：`admin` / 密码 `123456`
 
-> **关于登录密钥**：登录链路用 RSA 对数据库中的密码做加解密，因此需要一对密钥。
-> 私钥**不入库**（公开仓库里的私钥等于所有密码可被还原），
-> 由 `tools/gen_rsa_keys.py` 在本地生成并写入 `application-local.yml`，
-> 也可用环境变量 `RSA_PUBLIC_KEY` / `RSA_PRIVATE_KEY` 注入。
-> 若忘记密码或更换密钥，可用 `tools/reset_user_password.py --user admin --password 123456` 重置。
+> **关于密码存储**：口令以 **BCrypt 单向哈希**入库（强度 10，自带随机盐），
+> 数据库泄露也无法反推明文；代价是口令不可逆解，忘记后只能重置：
+> `python tools/reset_user_password.py --user admin --password 123456`。
 >
-> ⚠️ 修改 `t_user` 表后必须清理 Redis 中的 `User::*` 缓存，否则登录仍会读到旧密文
-> （表现为"密码正确却提示用户名或密码错误"）。迁移脚本 `tools/reencrypt_user_passwords.py` 已自动处理。
+> ⚠️ 修改 `t_user` 表后必须清理 Redis 中的 `User::*` 缓存，否则登录仍会读到旧值
+> （表现为"密码正确却提示用户名或密码错误"）。上述重置脚本会自动清理。
 
 ### 测试
 
 ```batch
-:: 后端单元与契约测试（18 个用例）
+:: 后端单元与契约测试（21 个用例）
 cd backend && mvn test
 
 :: 算法侧单元测试（47 个用例，无需数据集，秒级完成）
