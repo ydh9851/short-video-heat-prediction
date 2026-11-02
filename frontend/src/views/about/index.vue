@@ -87,6 +87,39 @@
       </div>
     </div>
 
+    <!-- ============ 与同类工作的能力对照 ============ -->
+    <div class="section-title">与同类工作的能力对照</div>
+    <div class="compare-wrap">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th class="col-cap">能力</th>
+            <th class="col-us">本系统</th>
+            <th>内容驱动型<br />热度预测研究</th>
+            <th>传统 BI /<br />数据大屏类</th>
+            <th>开源可解释<br />平台</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in compareRows" :key="row.name">
+            <td class="col-cap">{{ row.name }}</td>
+            <td class="col-us">
+              <span class="mark" :class="'m-' + row.us">{{ marks[row.us] }}</span>
+              <span v-if="row.usNote" class="mark-note">{{ row.usNote }}</span>
+            </td>
+            <td><span class="mark" :class="'m-' + row.a">{{ marks[row.a] }}</span></td>
+            <td><span class="mark" :class="'m-' + row.b">{{ marks[row.b] }}</span></td>
+            <td><span class="mark" :class="'m-' + row.c">{{ marks[row.c] }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="compare-note">
+        说明：本表只比较<b>能力有无</b>，不比较数值——各工作的数据规模、模态与评价口径差异极大，
+        指标不可直接横向比较（详见技术方案第 2.1 节）。同类研究指 SnapUGC（arXiv:2410.00289）、
+        arXiv:2501.01422 等内容驱动型短视频流行度预测工作；开源可解释平台指 shapash、MLflow 等。
+      </p>
+    </div>
+
     <!-- ============ 数据集与特征 / 实验结果 ============ -->
     <el-row :gutter="16">
       <el-col :xs="24" :lg="12">
@@ -319,7 +352,22 @@ export default {
           verdict: '结论：反事实建议只作「方向 + 区间」参考。主动暴露并下调自己的结论强度，是本课题的方法论特点。'
         }
       ],
-      features: [
+      // 与同类工作的能力对照：只比"有无"，不比数值（口径差异过大，数值不可横向比较）
+    marks: {
+      yes: '✓',
+      part: '部分',
+      no: '—'
+    },
+    compareRows: [
+      { name: '预测 + 分级 + 归因 + 建议一体化', us: 'yes', usNote: '本系统', a: 'part', b: 'no', c: 'no' },
+      { name: '不确定性量化（带覆盖保证的区间）', us: 'yes', usNote: '保形 89.5%', a: 'no', b: 'no', c: 'no' },
+      { name: '解释可信度评估（紧凑性/一致性/稳定性）', us: 'yes', usNote: '三指标', a: 'no', b: 'no', c: 'part' },
+      { name: '结论稳健性检验（安慰剂/重估/跨模型）', us: 'yes', a: 'no', b: 'no', c: 'no' },
+      { name: '数据质量门禁与漂移监控', us: 'yes', usNote: '8 断言 + PSI', a: 'no', b: 'part', c: 'no' },
+      { name: '模型版本治理与影子验证', us: 'yes', a: 'no', b: 'no', c: 'yes' },
+      { name: '实验台账与结论可复现', us: 'yes', usNote: '17 类实验', a: 'part', b: 'no', c: 'yes' }
+    ],
+    features: [
         { name: 'video_category', type: '类别特征', desc: '视频类别（14 类：搞笑 / 美食 / 音乐 …）' },
         { name: 'hour_bucket', type: '类别特征', desc: '发布时段（凌晨 / 上午 / 下午 / 晚间）' },
         { name: 'author_fans_log', type: '数值特征', desc: '作者粉丝数 log1p 变换（缓解长尾）' },
@@ -869,4 +917,88 @@ export default {
   padding: 9px 11px;
   margin-bottom: 6px;
 }
-</style>
+/* ============ 与同类工作的能力对照 ============ */
+.compare-wrap {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-card);
+  padding: 14px 16px 12px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+.compare-table {
+  width: 100%;
+  min-width: 880px;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th,
+  td {
+    border-bottom: 1px solid var(--app-border);
+    padding: 9px 12px;
+    text-align: center;
+    color: var(--app-text-2);
+  }
+
+  thead th {
+    background: #f7f8fc;
+    color: var(--app-text);
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .col-cap {
+    width: 252px;
+    text-align: left;
+    color: var(--app-text);
+    font-weight: 600;
+  }
+
+  .col-us {
+    width: 128px;
+    background: #f6f4ff;
+  }
+}
+
+.mark {
+  display: inline-block;
+  min-width: 24px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.m-yes {
+  color: #10b981;
+}
+
+.m-part {
+  color: #f59e0b;
+}
+
+.m-no {
+  color: #cbd5e1;
+}
+
+.mark-note {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--app-text-3);
+  font-weight: 400;
+}
+
+.compare-note {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--app-text-3);
+
+  b {
+    color: var(--app-text-2);
+  }
+}</style>
