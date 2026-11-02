@@ -38,12 +38,27 @@ public class EvaluationServiceImpl implements EvaluationService {
     private String attributionScript;
     @Value("${system.python.growthScript:}")
     private String growthScript;
+    @Value("${system.python.conformalScript:}")
+    private String conformalScript;
+    @Value("${system.python.explanationQualityScript:}")
+    private String explanationQualityScript;
+    @Value("${system.python.featureEnrichmentScript:}")
+    private String featureEnrichmentScript;
+    @Value("${system.python.twoStageScript:}")
+    private String twoStageScript;
+    @Value("${system.python.refutationScript:}")
+    private String refutationScript;
 
     private final PythonCliRunner runner;
     private final ObjectMapper om = new ObjectMapper();
 
     private static final Set<String> EVAL_MODES = new HashSet<>(Arrays.asList(
             "cv", "tuning", "learning-curve", "importance", "residual", "ablation", "drift"));
+    private static final Set<String> CONFORMAL_MODES = new HashSet<>(Arrays.asList("conformal"));
+    private static final Set<String> EXPLAIN_QUALITY_MODES = new HashSet<>(Arrays.asList("explanation-quality"));
+    private static final Set<String> ENRICHMENT_MODES = new HashSet<>(Arrays.asList("feature-enrichment"));
+    private static final Set<String> TWO_STAGE_MODES = new HashSet<>(Arrays.asList("two-stage"));
+    private static final Set<String> REFUTATION_MODES = new HashSet<>(Arrays.asList("refutation"));
     private static final Set<String> ATTR_MODES = new HashSet<>(Arrays.asList(
             "interaction", "counterfactual", "cross-platform"));
     private static final Set<String> QUANTILE_MODES = new HashSet<>(Arrays.asList(
@@ -99,6 +114,34 @@ public class EvaluationServiceImpl implements EvaluationService {
             script = require(growthScript, "system.python.growthScript");
             args.add("--sample");
             args.add(String.valueOf(nvl(req.getSample(), 20000)));
+        } else if (REFUTATION_MODES.contains(mode)) {
+            script = require(refutationScript, "system.python.refutationScript");
+            args.add("--splits");
+            args.add(String.valueOf(nvl(req.getFolds(), 3)));
+        } else if (TWO_STAGE_MODES.contains(mode)) {
+            script = require(twoStageScript, "system.python.twoStageScript");
+            args.add("--folds");
+            args.add(String.valueOf(nvl(req.getFolds(), 5)));
+        } else if (ENRICHMENT_MODES.contains(mode)) {
+            script = require(featureEnrichmentScript, "system.python.featureEnrichmentScript");
+            args.add("--folds");
+            args.add(String.valueOf(nvl(req.getFolds(), 5)));
+        } else if (EXPLAIN_QUALITY_MODES.contains(mode)) {
+            script = require(explanationQualityScript, "system.python.explanationQualityScript");
+            args.add("--sample");
+            args.add(String.valueOf(nvl(req.getSample(), 2000)));
+            if (req.getPlatform() != null && !req.getPlatform().trim().isEmpty()) {
+                args.add("--platform");
+                args.add(req.getPlatform().trim());
+            }
+        } else if (CONFORMAL_MODES.contains(mode)) {
+            script = require(conformalScript, "system.python.conformalScript");
+            args.add("--alpha");
+            args.add(String.valueOf(req.getAlpha() == null ? 0.1 : req.getAlpha()));
+            if (req.getPlatform() != null && !req.getPlatform().trim().isEmpty()) {
+                args.add("--platform");
+                args.add(req.getPlatform().trim());
+            }
         } else {
             throw new IllegalArgumentException("不支持的实验模式: " + mode);
         }
@@ -159,6 +202,27 @@ public class EvaluationServiceImpl implements EvaluationService {
                 "对抖音 / YouTube / TikTok / 哔哩哔哩 4 个平台分别训练 LightGBM 并计算 SHAP 贡献占比，"
                         + "对照同一特征在不同平台的相对重要性，揭示「跨平台可迁移」与「平台特有」的影响因素。",
                 "cross_platform_shap.png", "attr", 1200));
+        arr.add(desc("refutation", "反事实稳健性检验", "结论可信度",
+                "对「反事实建议」做三重检验：安慰剂维度（弱维度是否也被刷出高收益）、"
+                        + "随机子集重训（增益的均值/标准差/变异系数）、跨模型替换（最优取值是否一致），"
+                        + "判断建议能否真正用于决策。",
+                "", "attr", 900));
+        arr.add(desc("two-stage", "两阶段预测（早期信号）", "发布后修正",
+                "第一阶段只用发布时先验预测第 7 天热度；第二阶段逐步加入发布后第 1 天、第 3 天的真实累计互动，"
+                        + "量化「早期传播势能」带来的 R² 提升与相对误差下降。",
+                "", "evm", 900));
+        arr.add(desc("feature-enrichment", "特征增量实验", "特征体系论证",
+                "在同一份 YouTube 数据、同一套交叉验证、同一模型下，对比「基础先验 / +内容属性 / +标题文本」"
+                        + "三组特征集的 R²(log)，用数字回答「加维度是否比加样本更有效」。",
+                "", "evm", 900));
+        arr.add(desc("explanation-quality", "解释质量评估", "可解释性可信度",
+                "用紧凑性（解释 80% 贡献所需特征数）、一致性（SHAP 与增益/置换重要性的 Kendall τ）、"
+                        + "稳定性（bootstrap 重训后 Top-K 特征集合 Jaccard）三个维度评估 SHAP 结论是否可信。",
+                "", "attr", 900));
+        arr.add(desc("conformal", "保形预测区间", "不确定性量化",
+                "用校准集残差构造区间，在样本可交换假设下给出有限样本覆盖保证（P(y∈区间)≥1−α），"
+                        + "并按热度等级做 Mondrian 条件覆盖，与分位数回归在同一测试集上同口径对照。",
+                "", "evm", 900));
         return arr;
     }
 

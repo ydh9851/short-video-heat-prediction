@@ -101,8 +101,80 @@
           </el-radio-group>
         </template>
 
+        <template v-else-if="current === 'conformal'">
+          <span class="param-label">置信水平</span>
+          <el-radio-group v-model="form.alpha">
+            <el-radio-button :label="0.2">80%</el-radio-button>
+            <el-radio-button :label="0.1">90%</el-radio-button>
+            <el-radio-button :label="0.05">95%</el-radio-button>
+          </el-radio-group>
+        </template>
+
+        <template v-else-if="current === 'explanation-quality'">
+          <span class="param-label">解释样本数</span>
+          <el-radio-group v-model="form.sample">
+            <el-radio-button :label="1000">1,000</el-radio-button>
+            <el-radio-button :label="2000">2,000</el-radio-button>
+            <el-radio-button :label="4000">4,000</el-radio-button>
+          </el-radio-group>
+        </template>
+
+        <template v-else-if="current === 'feature-enrichment'">
+          <span class="param-label">交叉验证折数</span>
+          <el-radio-group v-model="form.folds">
+            <el-radio-button :label="3">3 折</el-radio-button>
+            <el-radio-button :label="5">5 折</el-radio-button>
+          </el-radio-group>
+        </template>
+
+        <template v-else-if="current === 'two-stage'">
+          <span class="param-label">交叉验证折数</span>
+          <el-radio-group v-model="form.folds">
+            <el-radio-button :label="3">3 折</el-radio-button>
+            <el-radio-button :label="5">5 折</el-radio-button>
+          </el-radio-group>
+        </template>
+
+        <template v-else-if="current === 'refutation'">
+          <span class="param-label">子集重估次数</span>
+          <el-radio-group v-model="form.folds">
+            <el-radio-button :label="3">3 次</el-radio-button>
+            <el-radio-button :label="5">5 次</el-radio-button>
+          </el-radio-group>
+        </template>
+
         <span v-else class="param-hint">该实验无需额外参数，直接点击「开始实验」即可。</span>
       </div>
+    </el-card>
+
+    <!-- ============ 实验台账 ============ -->
+    <el-card shadow="never" class="history-card">
+      <div class="run-head">
+        <div class="section-title">实验台账（最近 {{ runs.length }} 条，点击行可回看结果）</div>
+        <el-button size="small" :loading="loadingRuns" @click="loadRuns">刷新</el-button>
+      </div>
+      <el-table :data="runs" size="small" max-height="240" v-loading="loadingRuns">
+        <el-table-column prop="finishedAt" label="完成时间" width="170" />
+        <el-table-column prop="mode" label="实验模式" width="180" />
+        <el-table-column label="状态" width="92">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === 'DONE' ? 'success' : 'danger'">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="platform" label="平台" width="100" />
+        <el-table-column label="耗时" width="96">
+          <template #default="{ row }">{{ row.elapsedMs ? (row.elapsedMs / 1000).toFixed(1) + 's' : '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="traceId" label="traceId" min-width="150" show-overflow-tooltip />
+        <el-table-column label="操作" width="110">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click.stop="loadRun(row)">回看结果</el-button>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="还没有实验记录，跑一次实验就会自动记账" :image-size="70" />
+        </template>
+      </el-table>
     </el-card>
 
     <!-- ============ 结果 ============ -->
@@ -175,6 +247,9 @@ export default {
       current: 'cv',
       running: false,
       result: null,
+      // 实验台账（data/logs/experiment_runs.jsonl）
+      runs: [],
+      loadingRuns: false,
       // 异步任务轮询：已耗时秒数 + 轮询定时器句柄
       elapsedSeconds: 0,
       pollTimer: null,
@@ -191,6 +266,7 @@ export default {
         folds: 5,
         trials: 12,
         sample: 2000,
+        alpha: 0.1,
         category: '美食',
         fans: 50000,
         hour: 3,
@@ -306,6 +382,70 @@ export default {
           value: s.day7_median_multiplier == null ? '-' : s.day7_median_multiplier.toFixed(2) + '×',
           tone: 'tone-best'
         })
+      } else if (this.current === 'conformal') {
+        const g = r.global || {}
+        const base = r.quantile_baseline || {}
+        out.push({ label: '目标覆盖率', value: ((r.target_coverage || 0) * 100).toFixed(0) + '%' })
+        out.push({
+          label: '保形实测覆盖率',
+          value: g.coverage == null ? '-' : (g.coverage * 100).toFixed(1) + '%',
+          tone: 'tone-best'
+        })
+        out.push({
+          label: '分位数回归覆盖率',
+          value: base.coverage == null ? '-' : (base.coverage * 100).toFixed(1) + '%'
+        })
+        out.push({ label: '校准残差 q̂（log）', value: r.qhat_log == null ? '-' : r.qhat_log.toFixed(3) })
+        out.push({
+          label: '中位区间宽度',
+          value: g.median_width == null ? '-' : Math.round(g.median_width).toLocaleString()
+        })
+        out.push({ label: '拟合 / 校准 / 测试', value: `${r.n_fit || 0} / ${r.n_calib || 0} / ${r.n_test || 0}` })
+      } else if (this.current === 'explanation-quality') {
+        const rank = r.ranking || []
+        const comp = r.compacity || {}
+        const cons = r.consistency || {}
+        const stab = r.stability || {}
+        const top = rank[0] || {}
+        out.push({ label: '首位特征', value: top.feature || '-', tone: 'tone-best' })
+        out.push({ label: '首位贡献占比', value: top.share == null ? '-' : (top.share * 100).toFixed(1) + '%' })
+        out.push({ label: '解释 80% 贡献所需特征数', value: comp.k80 == null ? '-' : comp.k80 + ' 个' })
+        out.push({ label: '一致性 τ（SHAP vs 增益）', value: cons.kendall_shap_vs_gain == null ? '-' : cons.kendall_shap_vs_gain.toFixed(3) })
+        out.push({ label: '稳定性 Jaccard（Top-3）', value: stab.jaccard_mean == null ? '-' : stab.jaccard_mean.toFixed(3) })
+        out.push({ label: '解释样本数', value: Number(r.sample || 0).toLocaleString() })
+      } else if (this.current === 'feature-enrichment') {
+        const t = r.table || []
+        const s = r.summary || {}
+        out.push({ label: '参与视频数', value: Number(r.rows || 0).toLocaleString() })
+        out.push({ label: '基础先验 R²(log)', value: s.base_r2 == null ? '-' : s.base_r2.toFixed(4) })
+        out.push({ label: '+内容属性 R²(log)', value: s.content_r2 == null ? '-' : s.content_r2.toFixed(4), tone: 'tone-best' })
+        out.push({ label: '+标题文本 R²(log)', value: s.text_r2 == null ? '-' : s.text_r2.toFixed(4), tone: 'tone-best' })
+        out.push({ label: '内容增益', value: (s.content_gain == null ? '-' : '+' + s.content_gain.toFixed(4)) })
+        out.push({ label: '文本增益', value: (s.text_gain == null ? '-' : '+' + s.text_gain.toFixed(4)) })
+        if (t.length) out.push({ label: '目标口径', value: r.target || '-' })
+      } else if (this.current === 'refutation') {
+        const st = r.stability || {}
+        const pl = r.placebo || {}
+        const cm = r.cross_model || {}
+        out.push({ label: '总体结论', value: r.verdict || '-', tone: r.verdict === 'PASS' ? 'tone-best' : undefined })
+        out.push({ label: '基准预测热度', value: Number(r.base_prediction || 0).toLocaleString() })
+        out.push({
+          label: '发布小时增益区间',
+          value: st.hour_gain == null ? '-' : ((st.hour_gain.min * 100).toFixed(0) + '% ~ ' + (st.hour_gain.max * 100).toFixed(0) + '%')
+        })
+        out.push({ label: '增益变异系数 CV', value: st.hour_gain == null ? '-' : String(st.hour_gain.cv) })
+        out.push({ label: '安慰剂维度增益', value: pl.gain == null ? '-' : (pl.gain * 100).toFixed(1) + '%' })
+        out.push({ label: '跨模型最优取值一致', value: cm.hour_agreement ? '是' : '否' })
+      } else if (this.current === 'two-stage') {
+        const s = r.summary || {}
+        out.push({ label: '参与视频数', value: Number(r.rows || 0).toLocaleString() })
+        out.push({ label: '仅先验 R²(log)', value: s.prior_r2 == null ? '-' : s.prior_r2.toFixed(4) })
+        out.push({ label: '+第 1 天信号', value: s.d1_r2 == null ? '-' : s.d1_r2.toFixed(4), tone: 'tone-best' })
+        out.push({ label: '+第 1、3 天信号', value: s.d1d3_r2 == null ? '-' : s.d1d3_r2.toFixed(4), tone: 'tone-best' })
+        out.push({ label: '第 1 天带来增益', value: s.d1_gain == null ? '-' : '+' + s.d1_gain.toFixed(4) })
+        out.push({ label: '相对误差中位数（先验→双阶段）',
+          value: (s.prior_rel_err_p50 == null ? '-' : (s.prior_rel_err_p50 * 100).toFixed(1) + '%')
+            + ' → ' + (s.d1d3_rel_err_p50 == null ? '-' : (s.d1d3_rel_err_p50 * 100).toFixed(1) + '%') })
       }
       return out
     },
@@ -318,6 +458,63 @@ export default {
       }
       if (this.current === 'importance') return r.note ? [r.note] : []
       if (this.current === 'interaction' && r.note) return [r.note]
+      if (this.current === 'conformal') {
+        const cov = ((r.global || {}).coverage || 0) * 100
+        const base = (((r.quantile_baseline || {}).coverage) || 0) * 100
+        return ['保形区间在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α，是有限样本保证；'
+          + '分位数回归只能事后检验覆盖率。同一测试集上两者分别达到 '
+          + cov.toFixed(1) + '% 与 ' + base.toFixed(1) + '%。'
+          + 'Mondrian 分组校准用于缓解高热度档覆盖不足，代价是区间变宽。']
+      }
+      if (this.current === 'refutation') {
+        const st = r.stability || {}
+        const cm = r.cross_model || {}
+        const verdict = r.verdict === 'PASS'
+          ? '三项检验全部通过：反事实建议可作为决策参考。'
+          : '存在未通过的检验项：反事实建议只能作为方向性参考，不能当作精确的收益承诺。'
+        const detail = '发布小时的最优取值在多次子集重训中为 '
+          + ((st.details || []).map(d => d.hour_to + ' 点').join(' / ') || '-')
+          + '，增益区间 ' + (st.hour_gain ? (st.hour_gain.min * 100).toFixed(0) + '% ~ ' + (st.hour_gain.max * 100).toFixed(0) + '%' : '-')
+          + '（CV = ' + (st.hour_gain ? st.hour_gain.cv : '-') + '）。'
+          + '跨模型上，发布小时的最优取值' + (cm.hour_agreement ? '一致' : '不一致')
+          + '，类别最优取值' + (cm.category_agreement ? '一致' : '不一致') + '。'
+        return [verdict, detail,
+          '原因分析：这些维度本身对模型的贡献很小（SHAP 占比约 1%），在 log 空间经 expm1 放大后，'
+          + '微小差异会被放大成可观的百分比收益。因此在论文与系统中应把建议表述为「方向 + 区间」，'
+          + '并对强特征（作者粉丝数）之外的维度明确标注不确定性。']
+      }
+      if (this.current === 'two-stage') {
+        const s = r.summary || {}
+        return ['仅用发布时先验预测第 7 天热度，R²(log) 为 ' + (s.prior_r2 == null ? '-' : s.prior_r2.toFixed(4))
+          + '、相对误差中位数 ' + (s.prior_rel_err_p50 == null ? '-' : (s.prior_rel_err_p50 * 100).toFixed(1)) + '%；'
+          + '加入发布后第 1 天真实累计互动后跃升到 ' + (s.d1_r2 == null ? '-' : s.d1_r2.toFixed(4))
+          + '（+' + (s.d1_gain || 0).toFixed(4) + '），相对误差降到 '
+          + (s.d1d3_rel_err_p50 == null ? '-' : (s.d1d3_rel_err_p50 * 100).toFixed(1)) + '%。'
+          + '这说明「发布前预测」与「发布后 24 小时修正」应当作为两阶段能力分别呈现：'
+          + '前者用于选题与排期，后者用于投放与追投决策。']
+      }
+      if (this.current === 'feature-enrichment') {
+        const s = r.summary || {}
+        return ['同一份数据、同一套交叉验证、同一个 LightGBM：仅仅把「内容属性」加进特征集，R²(log) 就从 '
+          + (s.base_r2 == null ? '-' : s.base_r2.toFixed(4)) + ' 提升到 '
+          + (s.content_r2 == null ? '-' : s.content_r2.toFixed(4)) + '（+' + (s.content_gain || 0).toFixed(4) + '）；'
+          + '再叠加标题文本向量到 ' + (s.text_r2 == null ? '-' : s.text_r2.toFixed(4)) + '（再 +'
+          + (s.text_gain || 0).toFixed(4) + '）。'
+          + '作为对照：抖音数据把训练样本从 80% 加到 100%，R² 只提升约 0.002。'
+          + '这说明当前瓶颈是特征维度而非样本量，扩充内容与文本特征是更有效的方向。']
+      }
+      if (this.current === 'explanation-quality') {
+        const cons = r.consistency || {}
+        const stab = r.stability || {}
+        const comp = r.compacity || {}
+        return ['紧凑性 k80 = ' + (comp.k80 == null ? '-' : comp.k80)
+          + '：即「一个特征就能解释 80% 的平均绝对贡献」，说明该数据集下模型行为高度可概括。'
+          + '一致性 τ(SHAP vs 增益) = ' + (cons.kendall_shap_vs_gain == null ? '-' : cons.kendall_shap_vs_gain.toFixed(2))
+          + '、τ(SHAP vs 置换) = ' + (cons.kendall_shap_vs_permutation == null ? '-' : cons.kendall_shap_vs_permutation.toFixed(2))
+          + '：首位特征三种度量一致，其余特征的排序分歧较大，说明它们的信息量本身接近噪声。'
+          + '稳定性 Jaccard = ' + (stab.jaccard_mean == null ? '-' : stab.jaccard_mean.toFixed(2))
+          + '：bootstrap 重训后关键特征集合保持一致，归因结论可用于决策。']
+      }
       if (this.current === 'residual') {
         return ['原始热度空间受少数爆款主导，均值误差被极值放大；分位数误差（P50/P90）更能反映'
           + '「多数内容预测得准不准」，这也是论文中讨论业务可用性的依据。']
@@ -577,11 +774,149 @@ export default {
           }
         ]
       }
+      if (this.current === 'refutation') {
+        const st = r.stability || {}
+        const pl = r.placebo || {}
+        const cm = r.cross_model || {}
+        const checks = [
+          {
+            name: '① 安慰剂维度（发布月份）',
+            value: pl.gain == null ? '-' : (pl.gain * 100).toFixed(1) + '%',
+            standard: '弱维度增益应显著小于强维度（强维度最高 ' + ((pl.strong_dim_max_gain || 0) * 100).toFixed(1) + '%）',
+            result: pl.passed ? 'PASS' : 'WARN'
+          },
+          {
+            name: '② 子集重估：发布小时增益',
+            value: st.hour_gain == null ? '-' : (st.hour_gain.mean * 100).toFixed(1) + '% ± ' + (st.hour_gain.std * 100).toFixed(1) + '%',
+            standard: '变异系数 CV < 0.5 视为稳定（实际 ' + (st.hour_gain == null ? '-' : st.hour_gain.cv) + '）',
+            result: (st.hour_gain && st.hour_gain.cv != null && st.hour_gain.cv < 0.5) ? 'PASS' : 'WARN'
+          },
+          {
+            name: '③ 跨模型最优取值一致',
+            value: '小时 ' + (cm.hour_agreement ? '一致' : '不一致') + ' / 类别 ' + (cm.category_agreement ? '一致' : '不一致'),
+            standard: '三个模型给出的最优取值应相同，增益同号',
+            result: (cm.hour_agreement && cm.category_agreement) ? 'PASS' : 'WARN'
+          }
+        ]
+        return [
+          {
+            title: '三项稳健性检验',
+            rows: checks,
+            columns: [
+              { prop: 'name', label: '检验', minWidth: 220 },
+              { prop: 'value', label: '实测', width: 200 },
+              { prop: 'standard', label: '判定标准', minWidth: 320 },
+              { prop: 'result', label: '结论', width: 90 }
+            ]
+          },
+          {
+            title: '跨模型反事实对照（同一基准样本）',
+            rows: cm.rows || [],
+            columns: [
+              { prop: 'model', label: '模型', width: 100 },
+              { prop: 'hour_to', label: '最优发布小时', width: 130 },
+              { prop: 'hour_gain', label: '小时增益', width: 110, format: row => (row.hour_gain * 100).toFixed(1) + '%' },
+              { prop: 'category_to', label: '最优视频类别', width: 140 },
+              { prop: 'category_gain', label: '类别增益', width: 110, format: row => (row.category_gain * 100).toFixed(1) + '%' },
+              { prop: 'weekday_gain', label: '星期增益', width: 110, format: row => (row.weekday_gain * 100).toFixed(1) + '%' }
+            ]
+          }
+        ]
+      }
+      if (this.current === 'two-stage') {
+        return [{
+          title: '发布时先验 vs 加入早期信号（同一行子集 / 同一 CV / 同一模型）',
+          rows: r.table || [],
+          columns: [
+            { prop: 'feature_set', label: '特征集', minWidth: 220 },
+            { prop: 'n_features', label: '特征数', width: 90 },
+            { prop: 'r2_mean', label: 'R²(log)', width: 110, format: row => num(row.r2_mean) },
+            { prop: 'r2_gain_vs_prior', label: '相对先验增益', width: 140, format: row => (row.r2_gain_vs_prior > 0 ? '+' : '') + num(row.r2_gain_vs_prior) },
+            { prop: 'rmse_mean', label: 'RMSE(log)', width: 120, format: row => num(row.rmse_mean) },
+            { prop: 'rel_err_p50', label: '相对误差中位数', minWidth: 140, format: row => (row.rel_err_p50 * 100).toFixed(1) + '%' }
+          ]
+        }]
+      }
+      if (this.current === 'feature-enrichment') {
+        return [{
+          title: '三组特征集的 5 折交叉验证对照（同数据 / 同模型）',
+          rows: r.table || [],
+          columns: [
+            { prop: 'feature_set', label: '特征集', minWidth: 220 },
+            { prop: 'r2_mean', label: 'R²(log) 均值', width: 130, format: row => num(row.r2_mean) },
+            { prop: 'r2_std', label: '标准差', width: 100, format: row => num(row.r2_std) },
+            { prop: 'rmse_mean', label: 'RMSE(log)', width: 120, format: row => num(row.rmse_mean) },
+            { prop: 'mae_mean', label: 'MAE(log)', width: 110, format: row => num(row.mae_mean) },
+            {
+              prop: 'r2_gain_vs_base',
+              label: '相对基础特征 R² 增益',
+              minWidth: 170,
+              format: row => (row.r2_gain_vs_base > 0 ? '+' : '') + num(row.r2_gain_vs_base)
+            }
+          ]
+        }]
+      }
+      if (this.current === 'conformal') {
+        return [{
+          title: '分热度等级的条件覆盖率（全局 q̂ vs Mondrian 分组 q̂）',
+          rows: r.by_grade || [],
+          columns: [
+            { prop: 'grade', label: '热度等级', width: 110 },
+            { prop: 'count', label: '测试样本数', width: 120 },
+            {
+              prop: 'coverage_global_q',
+              label: '覆盖率（全局 q̂）',
+              minWidth: 150,
+              format: row => (row.coverage_global_q * 100).toFixed(1) + '%'
+            },
+            {
+              prop: 'coverage_mondrian_q',
+              label: '覆盖率（Mondrian 分组）',
+              minWidth: 170,
+              format: row => (row.coverage_mondrian_q * 100).toFixed(1) + '%'
+            },
+            { prop: 'qhat_log', label: '分组 q̂（log）', minWidth: 130, format: row => num(row.qhat_log) }
+          ]
+        }]
+      }
+      if (this.current === 'explanation-quality') {
+        const cons = r.consistency || {}
+        const stab = r.stability || {}
+        const metrics = [
+          { metric: 'Kendall τ（SHAP vs 增益重要性）', value: cons.kendall_shap_vs_gain, hint: '越接近 1 说明两种重要性排序越一致' },
+          { metric: 'Kendall τ（SHAP vs 置换重要性）', value: cons.kendall_shap_vs_permutation, hint: '置换重要性独立于模型内部结构' },
+          { metric: 'Kendall τ（增益 vs 置换）', value: cons.kendall_gain_vs_permutation, hint: '后两者之间的基线一致性' },
+          { metric: `稳定性 Jaccard（Top-${stab.topk || 3}，${stab.bootstraps || 0} 次重训）`, value: stab.jaccard_mean, hint: '1 表示每次重训选出的关键特征集合完全相同' },
+          { metric: '稳定性 Spearman（贡献向量）', value: stab.spearman_mean, hint: '重训后平均 |SHAP| 向量的秩相关' },
+          { metric: '紧凑性 k80 / k90', value: null, hint: `解释 80% / 90% 贡献所需特征数：${(r.compacity || {}).k80} / ${(r.compacity || {}).k90}` }
+        ]
+        return [
+          {
+            title: '特征贡献排名（按平均 |SHAP|）',
+            rows: r.ranking || [],
+            columns: [
+              { prop: 'feature', label: '特征', minWidth: 200 },
+              { prop: 'mean_abs_shap', label: '平均 |SHAP|', width: 150, format: row => num(row.mean_abs_shap) },
+              { prop: 'share', label: '贡献占比', width: 130, format: row => (row.share * 100).toFixed(2) + '%' }
+            ]
+          },
+          {
+            title: '解释质量三维度',
+            rows: metrics,
+            columns: [
+              { prop: 'metric', label: '指标', minWidth: 280 },
+              { prop: 'value', label: '取值', width: 130, format: row => (row.value == null ? '—' : num(row.value)) },
+              { prop: 'hint', label: '含义', minWidth: 300 }
+            ]
+          }
+        ]
+      }
       return []
     }
   },
   created () {
     this.loadModes()
+    this.loadRuns()
   },
   methods: {
     loadModes () {
@@ -591,6 +926,25 @@ export default {
           this.current = this.modes[0].mode
         }
       }).catch(() => {})
+    },
+    loadRuns () {
+      this.loadingRuns = true
+      evaluationApi.runs(20).then(re => {
+        this.runs = re.response || []
+        this.loadingRuns = false
+      }).catch(() => { this.loadingRuns = false })
+    },
+    loadRun (row) {
+      if (!row) return
+      if (row.mode && this.modes.some(m => m.mode === row.mode)) {
+        this.current = row.mode
+      }
+      if (row.result) {
+        this.result = row.result
+        this.$message.success('已载入 ' + row.finishedAt + ' 的实验结果')
+      } else {
+        this.$message.warning('该记录（' + row.status + '）没有可用结果')
+      }
     },
     selectMode (m) {
       this.current = m.mode
@@ -637,6 +991,7 @@ export default {
               ? (task.elapsedMs / 1000).toFixed(1) + ' 秒'
               : this.elapsedSeconds + ' 秒'
             this.$message.success('实验完成，耗时 ' + cost)
+            this.loadRuns()
           } else if (task.status === 'FAILED') {
             this.stopPolling()
             this.running = false
@@ -713,6 +1068,17 @@ export default {
     font-size: 12.5px;
     line-height: 1.75;
     color: #64748b;
+  }
+}
+
+.history-card {
+  margin-bottom: 16px;
+
+  .run-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
   }
 }
 

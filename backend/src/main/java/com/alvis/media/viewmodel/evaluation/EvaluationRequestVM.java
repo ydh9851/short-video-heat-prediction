@@ -25,6 +25,9 @@ public class EvaluationRequestVM {
     /** SHAP 采样行数（mode=importance） */
     private Integer sample;
 
+    /** 显著性水平 alpha（mode=conformal），0.1 对应 90% 覆盖，缺省 0.1 */
+    private Double alpha;
+
     /** 部分依赖图 / 交互分析的特征（可选） */
     private String feature;
 

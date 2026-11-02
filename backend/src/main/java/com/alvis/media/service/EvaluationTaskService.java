@@ -44,14 +44,17 @@ public class EvaluationTaskService {
     private final EvaluationService evaluationService;
     private final StringRedisTemplate redisTemplate;
     private final ThreadPoolTaskExecutor executor;
+    private final ExperimentLedgerService ledger;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public EvaluationTaskService(EvaluationService evaluationService,
                                  StringRedisTemplate redisTemplate,
-                                 @Qualifier(EvaluationTaskConfig.EXECUTOR_NAME) ThreadPoolTaskExecutor executor) {
+                                 @Qualifier(EvaluationTaskConfig.EXECUTOR_NAME) ThreadPoolTaskExecutor executor,
+                                 ExperimentLedgerService ledger) {
         this.evaluationService = evaluationService;
         this.redisTemplate = redisTemplate;
         this.executor = executor;
+        this.ledger = ledger;
     }
 
     /**
@@ -126,6 +129,9 @@ public class EvaluationTaskService {
             state.put("elapsedMs", String.valueOf(cost));
             state.put("result", objectMapper.writeValueAsString(result));
             writeState(taskId, state);
+            // 记入实验台账：与论文实验记录同源，可按 traceId 回查日志
+            ledger.append(taskId, req.getMode(), req.getPlatform(), req, "DONE", cost,
+                    TraceContext.current(), result);
             log.info("实验任务完成 taskId={} mode={} 耗时={}ms", taskId, req.getMode(), cost);
         } catch (Exception e) {
             log.error("实验任务失败 taskId={} mode={}", taskId, req.getMode(), e);
@@ -135,6 +141,9 @@ public class EvaluationTaskService {
             state.put("elapsedMs", String.valueOf(System.currentTimeMillis() - start));
             state.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
             writeState(taskId, state);
+            // 失败也记账：论文里"某模式为何不可用"同样是有效结论
+            ledger.append(taskId, req.getMode(), req.getPlatform(), req, "FAILED",
+                    System.currentTimeMillis() - start, TraceContext.current(), null);
         } finally {
             TraceContext.clear();
         }

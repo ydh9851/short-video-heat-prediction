@@ -9,6 +9,8 @@ export default {
   task: taskId => get(`/api/evaluation/task/${taskId}`, null, 30000),
   // 最近实验任务列表（摘要）
   tasks: () => get('/api/evaluation/tasks', null, 30000),
+  // 实验台账：历史实验记录（含参数、耗时、traceId、结果）
+  runs: (limit = 20) => get('/api/evaluation/runs', { limit }, 30000),
   // 同步执行（保留给脚本/调试，前端不再使用）
   run: query => post('/api/evaluation/run', query, 600000)
 }

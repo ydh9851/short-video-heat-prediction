@@ -4,6 +4,7 @@ import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.EvaluationService;
 import com.alvis.media.service.EvaluationTaskService;
+import com.alvis.media.service.ExperimentLedgerService;
 import com.alvis.media.viewmodel.evaluation.EvaluationRequestVM;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
@@ -39,6 +41,8 @@ public class EvaluationController extends BaseApiController {
     private final EvaluationService evaluationService;
 
     private final EvaluationTaskService evaluationTaskService;
+
+    private final ExperimentLedgerService experimentLedgerService;
 
     /** 支持的实验模式元信息（前端据此渲染实验列表） */
     @GetMapping("/modes")
@@ -70,6 +74,16 @@ public class EvaluationController extends BaseApiController {
     @GetMapping("/tasks")
     public RestResponse<List<Map<String, Object>>> tasks() {
         return RestResponse.ok(evaluationTaskService.recent());
+    }
+
+    /**
+     * 实验台账：历史实验记录（含参数、状态、耗时、traceId 与结果），新的在前。
+     * 落盘在 data/logs/experiment_runs.jsonl，可直接用 pandas 二次分析。
+     */
+    @GetMapping("/runs")
+    public RestResponse<List<JsonNode>> runs(
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return RestResponse.ok(experimentLedgerService.recent(limit));
     }
 
     /**
