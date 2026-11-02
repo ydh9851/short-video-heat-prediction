@@ -49,6 +49,10 @@ public class EvaluationServiceImpl implements EvaluationService {
     @Value("${system.python.refutationScript:}")
     private String refutationScript;
 
+    /** 目标口径对照实验脚本（加权热度 vs 播放量） */
+    @Value("${system.python.targetCompareScript:}")
+    private String targetCompareScript;
+
     private final PythonCliRunner runner;
     private final ObjectMapper om = new ObjectMapper();
 
@@ -59,6 +63,7 @@ public class EvaluationServiceImpl implements EvaluationService {
     private static final Set<String> ENRICHMENT_MODES = new HashSet<>(Arrays.asList("feature-enrichment"));
     private static final Set<String> TWO_STAGE_MODES = new HashSet<>(Arrays.asList("two-stage"));
     private static final Set<String> REFUTATION_MODES = new HashSet<>(Arrays.asList("refutation"));
+    private static final Set<String> TARGET_COMPARE_MODES = new HashSet<>(Arrays.asList("target-compare"));
     private static final Set<String> ATTR_MODES = new HashSet<>(Arrays.asList(
             "interaction", "counterfactual", "cross-platform"));
     private static final Set<String> QUANTILE_MODES = new HashSet<>(Arrays.asList(
@@ -114,6 +119,8 @@ public class EvaluationServiceImpl implements EvaluationService {
             script = require(growthScript, "system.python.growthScript");
             args.add("--sample");
             args.add(String.valueOf(nvl(req.getSample(), 20000)));
+        } else if (TARGET_COMPARE_MODES.contains(mode)) {
+            script = require(targetCompareScript, "system.python.targetCompareScript");
         } else if (REFUTATION_MODES.contains(mode)) {
             script = require(refutationScript, "system.python.refutationScript");
             args.add("--splits");
@@ -202,6 +209,10 @@ public class EvaluationServiceImpl implements EvaluationService {
                 "对抖音 / YouTube / TikTok / 哔哩哔哩 4 个平台分别训练 LightGBM 并计算 SHAP 贡献占比，"
                         + "对照同一特征在不同平台的相对重要性，揭示「跨平台可迁移」与「平台特有」的影响因素。",
                 "cross_platform_shap.png", "attr", 1200));
+        arr.add(desc("target-compare", "目标口径对照（热度 vs 播放量）", "口径论证",
+                "同一份数据、同一套特征、同一个 LightGBM、同一测试集，只改变预测目标"
+                        + "（加权热度 vs 播放量），量化目标口径对拟合精度与归因结论的影响。",
+                "", "evm", 900));
         arr.add(desc("refutation", "反事实稳健性检验", "结论可信度",
                 "对「反事实建议」做三重检验：安慰剂维度（弱维度是否也被刷出高收益）、"
                         + "随机子集重训（增益的均值/标准差/变异系数）、跨模型替换（最优取值是否一致），"

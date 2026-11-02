@@ -44,6 +44,8 @@ system:
     reportScript: '../algorithm/attribution/build_report.py'
     # 反事实稳健性检验（安慰剂 / 子集重估 / 模型替换）
     refutationScript: '../algorithm/attribution/refutation.py'
+    # 目标口径对照（加权热度 vs 播放量）
+    targetCompareScript: '../algorithm/evaluation/target_compare.py'
     # 模型注册表同步（版本 + 阶段）
     registryScript: '../algorithm/prediction/registry.py'
     # 热度增长曲线预测（TikTok 第 0~30 天真实累计快照）

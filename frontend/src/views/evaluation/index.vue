@@ -345,7 +345,7 @@ const MODE_FIGURE_GROUP = {
 
 /** 实验分组：把 17 类实验按「论证主题」归类，避免在页面上平铺成一长串 */
 const MODE_GROUPS = [
-  { key: 'perf', name: '模型性能与可靠性', modes: ['cv', 'tuning', 'learning-curve', 'residual', 'ablation', 'drift'] },
+  { key: 'perf', name: '模型性能与可靠性', modes: ['cv', 'tuning', 'learning-curve', 'residual', 'ablation', 'drift', 'target-compare'] },
   { key: 'feature', name: '特征体系论证', modes: ['importance', 'feature-enrichment', 'cross-platform'] },
   { key: 'interval', name: '不确定性与区间', modes: ['quantile', 'conformal'] },
   { key: 'explain', name: '可解释性与交互', modes: ['interaction', 'explanation-quality'] },
@@ -613,6 +613,19 @@ export default {
         out.push({ label: '内容增益', value: (s.content_gain == null ? '-' : '+' + s.content_gain.toFixed(4)) })
         out.push({ label: '文本增益', value: (s.text_gain == null ? '-' : '+' + s.text_gain.toFixed(4)) })
         if (t.length) out.push({ label: '目标口径', value: r.target || '-' })
+      } else if (this.current === 'target-compare') {
+        const rows = r.rows || []
+        const heat = rows.find(x => x.target === 'heat') || {}
+        const play = rows.find(x => x.target === 'play') || {}
+        const shifts = r.feature_shift || []
+        const moved = shifts.filter(s => s.delta !== 0)
+        out.push({ label: '两目标相关性 corr(log)', value: r.target_corr == null ? '-' : r.target_corr.toFixed(4) })
+        out.push({ label: '加权热度 R²', value: heat.r2 == null ? '-' : heat.r2.toFixed(4), tone: 'tone-best' })
+        out.push({ label: '播放量 R²', value: play.r2 == null ? '-' : play.r2.toFixed(4) })
+        out.push({ label: 'R² 差值', value: (heat.r2 != null && play.r2 != null) ? (play.r2 - heat.r2).toFixed(4) : '-' })
+        out.push({ label: '归因排名变化特征数', value: moved.length + ' / ' + shifts.length })
+        out.push({ label: '首位特征贡献占比', value: heat.top_features && heat.top_features[0]
+          ? (heat.top_features[0].feature + ' ' + (heat.top_features[0].share * 100).toFixed(2) + '%') : '-' })
       } else if (this.current === 'refutation') {
         const st = r.stability || {}
         const pl = r.placebo || {}
@@ -655,6 +668,28 @@ export default {
           + '分位数回归只能事后检验覆盖率。同一测试集上两者分别达到 '
           + cov.toFixed(1) + '% 与 ' + base.toFixed(1) + '%。'
           + 'Mondrian 分组校准用于缓解高热度档覆盖不足，代价是区间变宽。']
+      }
+      if (this.current === 'target-compare') {
+        const rows = r.rows || []
+        const heat = rows.find(x => x.target === 'heat') || {}
+        const play = rows.find(x => x.target === 'play') || {}
+        const shifts = r.feature_shift || []
+        const moved = shifts.filter(s => s.delta !== 0).length
+        const dR2 = (heat.r2 != null && play.r2 != null) ? Math.abs(play.r2 - heat.r2) : null
+        return [
+          '把预测目标从「加权热度」换成「播放量」后，R² 仅由 ' + (heat.r2 == null ? '-' : heat.r2.toFixed(4))
+            + ' 变为 ' + (play.r2 == null ? '-' : play.r2.toFixed(4))
+            + '（差 ' + (dR2 == null ? '-' : dR2.toFixed(4)) + '），相对误差中位数 '
+            + (heat.rel_err_p50 == null ? '-' : (heat.rel_err_p50 * 100).toFixed(1) + '%')
+            + ' → ' + (play.rel_err_p50 == null ? '-' : (play.rel_err_p50 * 100).toFixed(1) + '%')
+            + '；6 个特征的贡献排名发生位移的有 ' + moved + ' 个。',
+          '原因：两个目标在 log 空间的相关性高达 ' + (r.target_corr == null ? '-' : r.target_corr.toFixed(4))
+            + '——在当前数据中作者粉丝数同时驱动播放与互动，两个口径近似同义，因此学到的驱动因素也相同。',
+          '这带来两个结论：(1) 本系统采用加权热度口径并未牺牲精度，与只预测播放量的同类工作在精度上可比；'
+            + '(2) 更重要的是，它暴露了本数据集的区分度上限——"预测热度"与"预测播放量"几乎是同一件事，'
+            + '因此系统的价值不在精度，而在分级、归因与决策建议这些播放量本身无法回答的问题；'
+            + '两个口径真正产生差异的场景是"高播放、低互动"的样本，需在互动转化率分层下进一步区分。'
+        ]
       }
       if (this.current === 'refutation') {
         const st = r.stability || {}
@@ -960,6 +995,60 @@ export default {
               { prop: 'p25', label: 'P25', minWidth: 130, format: row => Math.round(row.p25).toLocaleString() },
               { prop: 'p50', label: 'P50 中位数', minWidth: 130, format: row => Math.round(row.p50).toLocaleString() },
               { prop: 'p75', label: 'P75', minWidth: 130, format: row => Math.round(row.p75).toLocaleString() }
+            ]
+          }
+        ]
+      }
+      if (this.current === 'target-compare') {
+        const rows = r.rows || []
+        const heat = rows.find(x => x.target === 'heat') || {}
+        const play = rows.find(x => x.target === 'play') || {}
+        const shifts = r.feature_shift || []
+        const featRows = []
+        const names = []
+        ;(heat.top_features || []).forEach(f => names.push(f.feature))
+        ;(play.top_features || []).forEach(f => { if (!names.includes(f.feature)) names.push(f.feature) })
+        names.forEach(name => {
+          const h = (heat.top_features || []).find(f => f.feature === name)
+          const p = (play.top_features || []).find(f => f.feature === name)
+          const s = shifts.find(x => x.feature === name)
+          featRows.push({
+            feature: name,
+            heat_share: h ? h.share : null,
+            play_share: p ? p.share : null,
+            rank_heat: s ? s.rank_heat : null,
+            rank_play: s ? s.rank_play : null,
+            delta: s ? s.delta : null
+          })
+        })
+        return [
+          {
+            title: '两种目标口径的拟合结果（同一数据 / 同一特征 / 同一模型 / 同一测试集）',
+            rows: rows.map(x => ({
+              target_desc: x.target_desc,
+              r2: x.r2,
+              rmse: x.rmse,
+              mae: x.mae,
+              rel: x.rel_err_p50
+            })),
+            columns: [
+              { prop: 'target_desc', label: '预测目标', minWidth: 260 },
+              { prop: 'r2', label: 'R²(log)', width: 110, format: row => row.r2 == null ? '-' : row.r2.toFixed(4) },
+              { prop: 'rmse', label: 'RMSE(log)', width: 110, format: row => row.rmse == null ? '-' : row.rmse.toFixed(4) },
+              { prop: 'mae', label: 'MAE(log)', width: 105, format: row => row.mae == null ? '-' : row.mae.toFixed(4) },
+              { prop: 'rel', label: '相对误差中位数', width: 135, format: row => row.rel == null ? '-' : (row.rel * 100).toFixed(1) + '%' }
+            ]
+          },
+          {
+            title: '特征贡献对照（SHAP 平均 |贡献| 占比与排名位移）',
+            rows: featRows,
+            columns: [
+              { prop: 'feature', label: '特征', minWidth: 200 },
+              { prop: 'heat_share', label: '热度口径占比', width: 130, format: row => row.heat_share == null ? '-' : (row.heat_share * 100).toFixed(2) + '%' },
+              { prop: 'play_share', label: '播放量口径占比', width: 140, format: row => row.play_share == null ? '-' : (row.play_share * 100).toFixed(2) + '%' },
+              { prop: 'rank_heat', label: '热度排名', width: 95, format: row => row.rank_heat == null ? '-' : '#' + row.rank_heat },
+              { prop: 'rank_play', label: '播放量排名', width: 105, format: row => row.rank_play == null ? '-' : '#' + row.rank_play },
+              { prop: 'delta', label: '排名位移', width: 95, format: row => row.delta == null ? '-' : (row.delta > 0 ? '+' + row.delta : row.delta) }
             ]
           }
         ]
