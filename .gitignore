@@ -74,3 +74,8 @@ data/models/
 
 # 本地私有配置（含 RSA 私钥，禁止入库）
 backend/src/main/resources/application-local.yml
+
+# 前端调试与测试产生的临时目录
+.playwright-cli/
+.pytest_cache/
+__pycache__/

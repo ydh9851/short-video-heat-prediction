@@ -5,7 +5,7 @@ rem
 rem  Usage : double-click this file, or run "restart_backend.cmd" in the
 rem          project root (short-video-heat-prediction).
 rem  Steps : 0 check MySQL/Redis -> 1 find process on port 8000 and kill it
-rem          -> 2 start backend in background (log: _boot.log)
+rem          -> 2 start backend in background (log: data\logs\backend.log)
 rem          -> 3 wait until port 8000 is listening
 rem          -> 4 health check (HTTP page + heat-predict API)
 rem
@@ -42,8 +42,8 @@ if defined PID (
 )
 
 echo.
-echo [2/4] Starting backend in background (log: _boot.log) ...
-start "" /MIN cmd /c "cd /d backend && mvn -q -Dmaven.test.skip=true compile spring-boot:run 1> ..\_boot.log 2>&1"
+echo [2/4] Starting backend in background (log: data\logs\backend.log) ...
+start "" /MIN cmd /c "cd /d backend && mvn -q -Dmaven.test.skip=true compile spring-boot:run 1> ..\data\logs\backend.log 2>&1"
 
 echo.
 echo [3/4] Waiting for port 8000 (max ~180s) ...
@@ -60,8 +60,8 @@ for /L %%i in (1,1,60) do (
 
 :health
 if "%UP%"=="0" (
-  echo   [FAIL] Timeout. Last 30 lines of _boot.log:
-  powershell -NoProfile -Command "Get-Content '_boot.log' -Tail 30"
+  echo   [FAIL] Timeout. Last 30 lines of data\logs\backend.log:
+  powershell -NoProfile -Command "Get-Content 'data\logs\backend.log' -Tail 30"
   goto :done
 )
 
@@ -73,7 +73,7 @@ powershell -NoProfile -Command "try { $x = Invoke-RestMethod -Uri 'http://127.0.
 echo.
 echo ------------------------------------------------------------
 echo  Done. Open http://localhost:8000/admin   (admin / 123456)
-echo  Log file: _boot.log
+echo  Log file: data\logs\backend.log
 echo ------------------------------------------------------------
 
 :done

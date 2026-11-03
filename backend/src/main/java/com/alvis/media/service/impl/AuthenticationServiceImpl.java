@@ -59,7 +59,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         if (!isBcrypt(stored)) {
             // 兼容旧库：历史数据为 RSA 密文，需先执行迁移脚本转成 BCrypt
             logger.warn("用户 {} 的密码仍为旧格式（非 BCrypt），"
-                    + "请执行 tools/migrate_passwords_to_bcrypt.py 完成迁移", username);
+                    + "请执行 tools/ops/migrate_passwords_to_bcrypt.py 完成迁移", username);
             return false;
         }
         return passwordEncoder.matches(password, stored);

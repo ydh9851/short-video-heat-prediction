@@ -7,7 +7,7 @@ rem  Backend is configured with system.python.serviceUrl=http://127.0.0.1:8100,
 rem  so it will use this service first and fall back to the CLI channel when
 rem  the service is down (30s circuit-breaker window).
 rem
-rem  Log file: _engine.log
+rem  Log file: data\logs\engine.log
 rem ============================================================================
 setlocal
 cd /d "%~dp0"
@@ -25,8 +25,8 @@ for /f "delims=" %%p in ('powershell -NoProfile -Command "$c = Get-NetTCPConnect
 timeout /t 1 >nul
 
 echo.
-echo [2/3] Starting uvicorn in background (log: _engine.log) ...
-start "" /MIN cmd /c ".venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8100 --app-dir algorithm\service 1> _engine.log 2>&1"
+echo [2/3] Starting uvicorn in background (log: data\logs\engine.log) ...
+start "" /MIN cmd /c ".venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8100 --app-dir algorithm\service 1> data\logs\engine.log 2>&1"
 
 echo.
 echo [3/3] Waiting for health check (max ~90s, first start warms the model) ...
@@ -42,8 +42,8 @@ for /L %%i in (1,1,30) do (
 
 :done
 if "%UP%"=="0" (
-  echo   [FAIL] service did not become healthy. Last 20 lines of _engine.log:
-  powershell -NoProfile -Command "if (Test-Path '_engine.log') { Get-Content '_engine.log' -Tail 20 }"
+  echo   [FAIL] service did not become healthy. Last 20 lines of data\logs\engine.log:
+  powershell -NoProfile -Command "if (Test-Path 'data\logs\engine.log') { Get-Content 'data\logs\engine.log' -Tail 20 }"
 ) else (
   powershell -NoProfile -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8100/health' -TimeoutSec 3; Write-Host ('  health = ' + $r.status + '  featureVersion=' + $r.featureVersion + '  loaded=' + ($r.loadedModels -join ',')) } catch {}"
 )

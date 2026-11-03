@@ -29,7 +29,7 @@
 | ![数据大屏](./docs/screenshots/08-screen.png) |  |
 
 > 界面上的每个数字都来自可复现的实验脚本，可在「实验中心」一键重跑；
-> 页面右上角的 `?demo=1` 进入答辩演示模式（折叠侧栏、隐藏无关元素）。
+> 页面右上角的 `?demo=1` 进入演示模式（折叠侧栏、隐藏无关元素）。
 
 ---
 
@@ -88,10 +88,10 @@
 | 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + **算法单元测试** + 后端测试 + 前端构建四阶段 |
 | 凭据管理 | 密码以 **BCrypt 单向哈希**入库（不可逆、自带随机盐）；数据库口令与第三方凭据一律走环境变量（`DB_PASSWORD` / `WX_APPID`），仓库内不含任何真实凭据；新增/修改用户时自动加盐哈希，登录走 `PasswordEncoder.matches` |
 | 前端体验 | **实验中心**（17 类实验分组目录 + 推荐演示路径 + 结论卡 + 台账对比）、**模型治理页**（版本阶段 / 影子偏差 / 引擎状态）、首页关键指标标注来源实验、数据质量首屏徽章速览 |
-| 答辩演示 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
+| 演示模式 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
 | 错误可追溯 | 前端统一错误提示携带后端 `X-Trace-Id`，出错时凭 traceId 直接在后端日志定位；业务错误与网络错误分别处理 |
 | 前端构建 | Vite 手动分包：echarts / element-plus / vue / axios 独立 chunk，业务代码迭代无需用户重新下载第三方库 |
-| 接口文档 | **Swagger UI**（`/swagger-ui/index.html`，可直接试调）+ OpenAPI JSON（`/v3/api-docs`），63 个接口按 10 组业务分类；静态文档 `docs/API.md` 由 `python tools/api_docs.py` 依据运行时契约自动生成，不会与代码脱节 |
+| 接口文档 | **Swagger UI**（`/swagger-ui/index.html`，可直接试调）+ OpenAPI JSON（`/v3/api-docs`），63 个接口按 10 组业务分类；静态文档 `docs/API.md` 由 `python tools/docs/api_docs.py` 依据运行时契约自动生成，不会与代码脱节 |
 | 测试 | `mvn test` 可直接运行：统一响应体、`PythonCliRunner`（含超时强杀、traceId 透传回归用例）、RSA 加解密；surefire 已取消全局 `skipTests` |
 
 ---
@@ -196,7 +196,7 @@ restart_backend.cmd
 
 > **关于密码存储**：口令以 **BCrypt 单向哈希**入库（强度 10，自带随机盐），
 > 数据库泄露也无法反推明文；代价是口令不可逆解，忘记后只能重置：
-> `python tools/reset_user_password.py --user admin --password 123456`。
+> `python tools/ops/reset_user_password.py --user admin --password 123456`。
 >
 > ⚠️ 修改 `t_user` 表后必须清理 Redis 中的 `User::*` 缓存，否则登录仍会读到旧值
 > （表现为"密码正确却提示用户名或密码错误"）。上述重置脚本会自动清理。

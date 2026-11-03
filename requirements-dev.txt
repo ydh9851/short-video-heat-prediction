@@ -1,8 +1,8 @@
-# 开发期依赖（运行系统本身不需要，仅用于本地测试与密钥生成）
+# 开发期依赖（运行系统本身不需要，仅用于本地测试与运维脚本）
 -r requirements.txt
 
 # 单元测试
 pytest==9.2.0
 
-# 密钥生成脚本（tools/gen_rsa_keys.py）
+# 运维脚本依赖（tools/ops 下的密码迁移工具）
 cryptography==50.0.2

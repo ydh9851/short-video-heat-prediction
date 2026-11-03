@@ -6,7 +6,7 @@
 新增或修改接口后重启后端再重跑本脚本即可，不会出现文档与代码脱节。
 
 用法：
-    python tools/api_docs.py [后端地址]      # 默认 http://127.0.0.1:8000
+    python tools/docs/api_docs.py [后端地址]      # 默认 http://127.0.0.1:8000
 """
 import json
 import sys
@@ -47,7 +47,7 @@ def main():
     out = []
     out.append("# 接口文档")
     out.append("")
-    out.append("> 本文件由 `python tools/api_docs.py` 依据后端 OpenAPI 契约（`/v3/api-docs`）自动生成，"
+    out.append("> 本文件由 `python tools/docs/api_docs.py` 依据后端 OpenAPI 契约（`/v3/api-docs`）自动生成，"
                "共 **%d** 个接口，分 **%d** 组。" % (total, len(groups)))
     out.append("")
     out.append("> 在线交互式文档（可直接试调）：`%s/swagger-ui/index.html`" % BASE)
