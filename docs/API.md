@@ -1,6 +1,6 @@
 # 接口文档
 
-> 本文件由 `python tools/api_docs.py` 依据后端 OpenAPI 契约（`/v3/api-docs`）自动生成，共 **63** 个接口，分 **10** 组。
+> 本文件由 `python tools/docs/api_docs.py` 依据后端 OpenAPI 契约（`/v3/api-docs`）自动生成，共 **64** 个接口，分 **10** 组。
 
 > 在线交互式文档（可直接试调）：`http://127.0.0.1:8000/swagger-ui/index.html`
 
@@ -21,7 +21,7 @@
 | 模型评估与实验 | 7 |
 | 消息管理 | 2 |
 | 热度分级 | 1 |
-| 热度预测 | 6 |
+| 热度预测 | 7 |
 | 用户管理 | 10 |
 | 错误处理 | 5 |
 
@@ -109,6 +109,7 @@
 | `GET` | `/api/predict/engine` | — | — |
 | `GET` | `/api/predict/logs` | — | page(query)、size(query) |
 | `GET` | `/api/predict/metrics` | — | — |
+| `GET` | `/api/predict/whatif` | — | dimension(query)、videoCategory(query)、authorFans(query)、publishHour(query)、publishWeekday(query)、publishMonth(query)、model(query) |
 | `POST` | `/api/predict` | — | body(JSON) |
 | `POST` | `/api/predict/batch` | — | body(JSON) |
 | `POST` | `/api/predict/interval` | — | body(JSON) |
