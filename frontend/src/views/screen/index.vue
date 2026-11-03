@@ -561,4 +561,164 @@ export default {
   padding: 14px 8px;
   text-align: center;
 }
+
+/* ============================================================
+ * 发布会式大屏（覆盖前面的基础样式）
+ * ------------------------------------------------------------
+ * 深色场景下的"玻璃"与浅色不同：靠低透明度的冷色叠加 + 发丝边框 +
+ * 顶部微光，而不是简单加 blur（深底上 blur 几乎不可见，反而发灰）。
+ * ============================================================ */
+.screen-page {
+  position: relative;
+  padding: 28px 32px 32px;
+  border-radius: 20px;
+  background:
+    radial-gradient(1200px 520px at 18% -10%, rgba(56, 189, 248, .16), transparent 60%),
+    radial-gradient(900px 460px at 88% -6%, rgba(139, 92, 246, .16), transparent 58%),
+    radial-gradient(circle at 50% 120%, rgba(99, 102, 241, .12), transparent 62%),
+    linear-gradient(180deg, #0b1220 0%, #070c16 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), var(--shadow-lift);
+  overflow: hidden;
+}
+
+.screen-head {
+  align-items: flex-end;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(148, 163, 184, .14);
+
+  .head-title {
+    font-size: clamp(26px, 2.6vw, 38px);
+    font-weight: 700;
+    letter-spacing: -.022em;
+    line-height: 1.1;
+    background: linear-gradient(120deg, #f8fafc 20%, #a5b4fc 60%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .head-sub {
+    font-size: 14px;
+    color: #7c8aa5;
+    letter-spacing: .02em;
+    margin-top: 8px;
+  }
+
+  .clock {
+    font-size: 15px;
+    color: #cbd5e1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+  }
+}
+
+/* KPI：半透明 + 发丝边 + 悬停抬升，数字用大字号做视觉锚点 */
+.kpi-row {
+  gap: 16px;
+  margin: 22px 0 18px;
+
+  .kpi {
+    position: relative;
+    padding: 18px 20px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, .16);
+    background: linear-gradient(160deg, rgba(56, 189, 248, .10), rgba(15, 23, 42, .5) 60%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+    transition:
+      transform var(--dur-base) var(--spring-soft),
+      border-color var(--dur-base) var(--spring-smooth),
+      box-shadow var(--dur-base) var(--spring-smooth);
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 12%;
+      right: 12%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .28), transparent);
+      pointer-events: none;
+    }
+
+    &:hover {
+      transform: translate3d(0, -4px, 0);
+      border-color: rgba(56, 189, 248, .32);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 18px 40px rgba(0, 0, 0, .45);
+    }
+  }
+
+  .kpi-label {
+    font-size: 12px;
+    color: #7c8aa5;
+    letter-spacing: .06em;
+  }
+
+  .kpi-value {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -.028em;
+    line-height: 1.15;
+    margin-top: 6px;
+    background: linear-gradient(140deg, #f8fafc, #7dd3fc 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .kpi-sub {
+    font-size: 11.5px;
+    color: #64748b;
+    margin-top: 4px;
+  }
+}
+
+/* 图表卡：深色玻璃 */
+.chart-card {
+  position: relative;
+  padding: 16px 18px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  background: rgba(15, 23, 42, .42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+  transition:
+    transform var(--dur-base) var(--spring-soft),
+    border-color var(--dur-base) var(--spring-smooth);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .22), transparent);
+    pointer-events: none;
+  }
+
+  &:hover {
+    transform: translate3d(0, -3px, 0);
+    border-color: rgba(148, 163, 184, .26);
+  }
+
+  .chart-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: #cbd5e1;
+  }
+}
+
+/* 实时流卡同样升级材质 */
+.stream-card {
+  border-radius: 16px;
+  border-color: rgba(56, 189, 248, .2);
+  background: linear-gradient(160deg, rgba(56, 189, 248, .07), rgba(15, 23, 42, .5) 60%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+@media (max-width: 1200px) {
+  .screen-page {
+    padding: 18px 16px 22px;
+  }
+}
 </style>

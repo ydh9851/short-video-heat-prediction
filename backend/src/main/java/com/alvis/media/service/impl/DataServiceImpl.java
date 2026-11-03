@@ -336,11 +336,15 @@ public class DataServiceImpl implements DataService {
                 .sorted((a, b) -> b.getValue() - a.getValue())
                 .forEach(e -> cats.addObject().put("name", e.getKey()).put("count", e.getValue()));
 
+        // 分位字段名与数据集注册表（data/processed/dataset_registry.json）保持一致：
+        // q25 / median / q75 / p90。前端大屏与对比页按这套命名取值，
+        // 若这里用 q1/q3 会导致前端取不到 q25 与 p90 而显示占位值。
         ObjectNode h = root.putObject("heat");
         h.put("min", quantile(heats, 0));
-        h.put("q1", quantile(heats, 0.25));
+        h.put("q25", quantile(heats, 0.25));
         h.put("median", quantile(heats, 0.5));
-        h.put("q3", quantile(heats, 0.75));
+        h.put("q75", quantile(heats, 0.75));
+        h.put("p90", quantile(heats, 0.9));
         h.put("max", heats.isEmpty() ? 0 : heats.get(heats.size() - 1));
         h.put("mean", heats.isEmpty() ? 0 : heatSum / heats.size());
 

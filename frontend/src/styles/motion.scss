@@ -120,6 +120,11 @@
  * 可访问性：尊重系统的"减少动态效果"设置
  * ============================================================ */
 @media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   *,
   *::before,
   *::after {
@@ -132,4 +137,43 @@
   .app-stagger > * {
     animation-delay: 0ms !important;
   }
+}
+/* ============================================================
+ * 滚动浮现（配合 utils/reveal.js 的 IntersectionObserver）
+ * ============================================================ */
+[data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+  transition:
+    opacity var(--dur-slow) var(--spring-smooth) var(--reveal-delay, 0ms),
+    transform var(--dur-slow) var(--spring-smooth) var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+/* 玻璃卡片：分层材质（半透明 + 饱和度提升 + 顶部发丝高光） */
+.glass-card {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+  pointer-events: none;
 }

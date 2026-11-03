@@ -50,8 +50,8 @@
 
     <!-- ============ 要解决的问题 ============ -->
     <el-card shadow="never" class="block-card">
-      <div class="section-title">为什么做这个系统</div>
-      <div class="problem-grid">
+      <div class="section-title" data-reveal>为什么做这个系统</div>
+      <div class="problem-grid" data-reveal data-reveal-delay="80">
         <div class="problem-item">
           <div class="problem-idx">01</div>
           <div class="problem-title">经验判断主观、滞后、无法规模化</div>
@@ -71,8 +71,8 @@
     </el-card>
 
     <!-- ============ 四大功能模块 ============ -->
-    <div class="section-title">系统四大功能模块</div>
-    <div class="module-grid">
+    <div class="section-title" data-reveal>系统四大功能模块</div>
+    <div class="module-grid" data-reveal data-reveal-delay="80">
       <div v-for="m in modules" :key="m.title" class="module-card" :class="'tone-' + m.tone">
         <div class="module-head">
           <div class="module-icon"><svg-icon :icon-class="m.icon" /></div>
@@ -88,8 +88,8 @@
     </div>
 
     <!-- ============ 与同类工作的能力对照 ============ -->
-    <div class="section-title">与同类工作的能力对照</div>
-    <div class="compare-wrap">
+    <div class="section-title" data-reveal>与同类工作的能力对照</div>
+    <div class="compare-wrap" data-reveal data-reveal-delay="80">
       <table class="compare-table">
         <thead>
           <tr>
@@ -124,7 +124,7 @@
     <el-row :gutter="16">
       <el-col :xs="24" :lg="12">
         <el-card shadow="never" class="block-card">
-          <div class="section-title">数据集与特征体系</div>
+          <div class="section-title" data-reveal>数据集与特征体系</div>
           <el-descriptions :column="1" border size="small" class="data-desc">
             <el-descriptions-item label="数据集">Kaggle 公开数据集 chaoqunx/douyin-video-datasets（Apache-2.0）</el-descriptions-item>
             <el-descriptions-item label="规模">45,476 行 × 9 列，零缺失值；时间跨度 2025-09-01 ~ 2025-12-26</el-descriptions-item>
@@ -141,7 +141,7 @@
 
       <el-col :xs="24" :lg="12">
         <el-card shadow="never" class="block-card">
-          <div class="section-title">多模型对照实验结果（20% 测试集）</div>
+          <div class="section-title" data-reveal>多模型对照实验结果（20% 测试集）</div>
           <el-table :data="models" size="small" class="feature-table">
             <el-table-column prop="name" label="模型" width="130" />
             <el-table-column label="RMSE(log)" width="110">
@@ -174,14 +174,14 @@
 
     <!-- ============ 能力全景 ============ -->
     <el-card shadow="never" class="block-card">
-      <div class="section-title">能力全景：三端协同 · 六类能力</div>
+      <div class="section-title" data-reveal>能力全景：三端协同 · 六类能力</div>
       <el-table :data="capabilities" size="small" class="cap-table">
         <el-table-column prop="layer" label="层次" width="130" />
         <el-table-column prop="stack" label="技术栈" width="220" />
         <el-table-column prop="ability" label="关键能力" min-width="360" />
         <el-table-column prop="output" label="可交付产物" min-width="230" />
       </el-table>
-      <div class="cross-grid">
+      <div class="cross-grid" data-reveal data-reveal-delay="80">
         <div v-for="c in crossCutting" :key="c.title" class="cross-card">
           <div class="cross-title">{{ c.title }}</div>
           <div class="cross-desc">{{ c.desc }}</div>
@@ -190,8 +190,8 @@
     </el-card>
 
     <!-- ============ 结论如何被证明 ============ -->
-    <div class="section-title">结论如何被证明：三步递进的可信度论证</div>
-    <div class="proof-grid">
+    <div class="section-title" data-reveal>结论如何被证明：三步递进的可信度论证</div>
+    <div class="proof-grid" data-reveal data-reveal-delay="80">
       <div v-for="p in proofs" :key="p.no" class="proof-card">
         <div class="proof-no">{{ p.no }}</div>
         <div class="proof-title">{{ p.title }}</div>
@@ -211,7 +211,7 @@
 
     <!-- ============ 系统架构 ============ -->
     <el-card shadow="never" class="block-card">
-      <div class="section-title">系统架构（三端协同）</div>
+      <div class="section-title" data-reveal>系统架构（三端协同）</div>
       <div class="arch">
         <div class="arch-box tone-front">
           <div class="arch-title">前端展示层</div>
@@ -250,8 +250,8 @@
 
     <!-- ============ 创新点 ============ -->
     <el-card shadow="never" class="block-card">
-      <div class="section-title">项目创新点</div>
-      <div class="innov-grid">
+      <div class="section-title" data-reveal>项目创新点</div>
+      <div class="innov-grid" data-reveal data-reveal-delay="80">
         <div v-for="(it, i) in innovations" :key="i" class="innov-item">
           <div class="innov-no">{{ i + 1 }}</div>
           <div>
@@ -1169,5 +1169,58 @@ export default {
       font-size: 14px;
     }
   }
+}
+
+/* ============================================================
+ * 展示层：卡片材质统一为玻璃（分层光，而非单纯 blur）
+ * ============================================================ */
+.problem-item,
+.module-card,
+.cross-card,
+.proof-card,
+.innov-item {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform var(--dur-base) var(--spring-soft),
+    box-shadow var(--dur-base) var(--spring-smooth);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+    pointer-events: none;
+  }
+
+  &:hover {
+    transform: translate3d(0, -4px, 0);
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+/* 序号用超大字号做视觉锚点（苹果风常用的大数字序号） */
+.proof-no {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1;
+  background: linear-gradient(160deg, #6366f1, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 区块标题：更克制的层级（细体 + 紧字距） */
+.section-title {
+  font-weight: 600;
+  letter-spacing: -.012em;
 }
 </style>

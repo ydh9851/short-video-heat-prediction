@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { resetReveal } from '@/utils/reveal'
 import Layout from '@/layout'
 
 const constantRoutes = [
@@ -267,6 +268,12 @@ const constantRoutes = [
 const router = createRouter({
   history: createWebHashHistory(),
   routes: constantRoutes
+})
+
+// 路由切换后重新绑定滚动浮现：新页面的 data-reveal 元素重新进入观察，
+// 已揭示的元素复位，保证每次导航都有完整的入场节奏。
+router.afterEach(() => {
+  setTimeout(() => resetReveal('.app-main'), 60)
 })
 
 export { constantRoutes, router }

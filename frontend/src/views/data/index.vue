@@ -616,7 +616,7 @@ export default {
       if (!this.charts.heat) this.charts.heat = echarts.init(el)
       const h = this.ov.heat
       const names = ['最小值', 'P25', '中位数', 'P75', '最大值']
-      const vals = [h.min, h.q1, h.median, h.q3, h.max]
+      const vals = [h.min, h.q25, h.median, h.q75, h.max]
       this.charts.heat.setOption({
         grid: { left: 10, right: 20, top: 24, bottom: 6, containLabel: true },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => `${p[0].name}<br/>热度：${this.fmtInt(p[0].value)}` },
