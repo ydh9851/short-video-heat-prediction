@@ -1001,4 +1001,173 @@ export default {
   b {
     color: var(--app-text-2);
   }
-}</style>
+}
+/* ============================================================
+ * 展示层苹果风改造（覆盖前面的基础样式）
+ * ------------------------------------------------------------
+ * 要点不是"大留白 + 大字"，而是三件事：
+ *   1. 材质：半透明 + 背景模糊 + 饱和度提升 + 顶部发丝高光（玻璃的真实感来自分层，不只是 blur）
+ *   2. 物理：入场与悬停走弹簧曲线，可被打断、可反向
+ *   3. 克制：去掉多余描边与渐变堆叠，用字号与留白建立层级
+ * ============================================================ */
+.about-hero {
+  position: relative;
+  align-items: flex-end;
+  gap: 44px;
+  padding: 56px 64px;
+  border-radius: 26px;
+  background:
+    radial-gradient(1100px 420px at 10% -12%, rgba(99, 102, 241, .16), transparent 62%),
+    radial-gradient(880px 360px at 94% -6%, rgba(168, 85, 247, .13), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, .88) 0%, rgba(255, 255, 255, .74) 100%);
+  border: 1px solid rgba(255, 255, 255, .72);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  overflow: hidden;
+
+  /* 顶部发丝高光：玻璃之所以"像玻璃"，靠的是这层边缘反光 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 8%;
+    right: 8%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+    pointer-events: none;
+  }
+
+  .hero-tags {
+    margin-bottom: 20px;
+
+    .tag-tone {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      border: none;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(99, 102, 241, .22);
+    }
+
+    .tag-plain {
+      color: #6b5bd2;
+      border-color: rgba(107, 91, 210, .22);
+      background: rgba(255, 255, 255, .6);
+      backdrop-filter: saturate(140%) blur(8px);
+    }
+  }
+
+  h1 {
+    font-size: clamp(28px, 3.2vw, 44px);
+    font-weight: 700;
+    letter-spacing: -.022em;
+    line-height: 1.14;
+    color: #0f172a;
+    margin: 0 0 12px;
+    max-width: 15em;
+  }
+
+  .hero-sub {
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -.012em;
+    color: #6b5bd2;
+    margin: 0 0 22px;
+  }
+
+  .hero-desc {
+    font-size: 15px;
+    line-height: 1.85;
+    color: #475569;
+    margin: 0 0 24px;
+    max-width: 46em;
+
+    strong {
+      color: #4338ca;
+      font-weight: 600;
+    }
+  }
+
+  .hero-meta {
+    gap: 20px;
+    font-size: 12.5px;
+    color: #94a3b8;
+  }
+
+  .hero-right {
+    grid-template-columns: repeat(3, minmax(112px, 1fr));
+    gap: 12px;
+  }
+
+  .hero-stat {
+    background: rgba(255, 255, 255, .66);
+    backdrop-filter: saturate(170%) blur(14px);
+    -webkit-backdrop-filter: saturate(170%) blur(14px);
+    border: 1px solid rgba(255, 255, 255, .82);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow-soft);
+    transition:
+      transform var(--dur-base) var(--spring-soft),
+      box-shadow var(--dur-base) var(--spring-smooth),
+      background-color var(--dur-base) var(--spring-smooth);
+
+    &:hover {
+      transform: translate3d(0, -4px, 0);
+      background: rgba(255, 255, 255, .84);
+      box-shadow: var(--shadow-lift);
+    }
+
+    b {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: #4338ca;
+    }
+
+    span {
+      font-size: 11.5px;
+      color: #94a3b8;
+      margin-top: 6px;
+    }
+  }
+}
+
+/* 入场节奏：标题 → 描述 → 指标卡，逐级浮现 */
+.hero-left {
+  animation: app-rise var(--dur-scene) var(--spring-smooth) both;
+}
+
+.hero-right {
+  animation: app-rise var(--dur-scene) var(--spring-smooth) .12s both;
+}
+
+.hero-stat {
+  animation: app-pop var(--dur-scene) var(--spring-bounce) both;
+}
+
+@for $i from 1 through 6 {
+  .hero-stat:nth-child(#{$i}) {
+    animation-delay: .18s + $i * .05s;
+  }
+}
+
+/* 窄屏收敛：苹果风的大留白在窄屏要先让位给信息 */
+@media (max-width: 1100px) {
+  .about-hero {
+    padding: 36px 28px;
+    gap: 26px;
+
+    h1 {
+      font-size: 26px;
+    }
+
+    .hero-sub {
+      font-size: 17px;
+    }
+
+    .hero-desc {
+      font-size: 14px;
+    }
+  }
+}
+</style>

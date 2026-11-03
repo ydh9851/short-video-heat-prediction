@@ -1,0 +1,135 @@
+/* ============================================================
+ * 动效基座（Motion tokens）
+ * ------------------------------------------------------------
+ * 设计原则来自 Apple 的交互观感，而不是"把时长调短"：
+ *   1. 可交互元素一律用「弹簧」而非固定时长的缓动——弹簧可以被中途打断、
+ *      可反向，固定时长的过渡会与用户操作打架（snap and fight the user）；
+ *   2. 只动 transform 与 opacity，避免触发重排；
+ *   3. 入场动效按层级 stagger，形成节奏而不是整块一起出现；
+ *   4. 必须尊重 prefers-reduced-motion——前庭敏感用户不应被迫看动效。
+ *
+ * 说明：spring 曲线用 CSS 的 linear() 近似实现（cubic-bezier 的物理化替代），
+ * 不引入任何前端依赖即可获得"可打断"的观感；若后续允许新增依赖，
+ * 可换用 motion.dev 的真 spring（支持速度与阻尼等物理参数）。
+ * ============================================================ */
+
+:root {
+  /* ---- 弹簧曲线（近似）---- */
+  --spring-soft: linear(0, 0.0033 1.2%, 0.0312 2.4%, 0.1297 4.8%, 0.4126 9.6%,
+    0.7436 14.4%, 0.9378 19.2%, 1.0327 24%, 1.0754 29%, 1.0869 34.2%, 1.0625 45%,
+    1.0122 58%, 0.9975 72%, 1);
+  --spring-bounce: linear(0, 0.0081 2%, 0.0551 4.1%, 0.1654 8.2%, 0.4692 16.5%,
+    0.6404 20.6%, 0.7571 24.7%, 0.8317 28.8%, 0.8692 32.9%, 0.8794 37.1%, 0.8672 43.9%,
+    0.8546 49.7%, 0.8607 56.1%, 0.8813 65.4%, 0.9157 78.8%, 0.9601 90.7%, 1);
+  --spring-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ---- 时长阶梯 ---- */
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --dur-scene: 680ms;
+
+  /* ---- 间距（8px 栅格）---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --sp-9: 96px;
+
+  /* ---- 字号阶梯 ---- */
+  --fs-caption: 12px;
+  --fs-body: 14px;
+  --fs-lead: 16px;
+  --fs-title: 20px;
+  --fs-display: 28px;
+  --fs-hero: 44px;
+
+  /* ---- 材质（玻璃：半透明 + 饱和度提升 + 顶部高光 + 发丝边框）---- */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-blur: saturate(180%) blur(20px);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --shadow-lift: 0 2px 6px rgba(16, 24, 40, 0.06), 0 18px 44px rgba(16, 24, 40, 0.1);
+}
+/* ============================================================
+ * 入场动效工具类
+ * ============================================================ */
+
+/* 卡片 / 面板入场：轻微上浮 + 淡入 */
+.app-enter {
+  animation: app-rise var(--dur-slow) var(--spring-smooth) both;
+}
+
+@keyframes app-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* 强调元素入场：带回弹的缩放（用于"最优"标记、关键数字） */
+.app-enter-bounce {
+  animation: app-pop var(--dur-scene) var(--spring-bounce) both;
+}
+
+@keyframes app-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 逐项 stagger：用 --i 传入序号控制节奏 */
+.app-stagger > * {
+  animation: app-rise var(--dur-slow) var(--spring-smooth) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* 悬停抬升：指针可交互的元素用弹簧回到原位，可被打断 */
+.app-lift {
+  transition:
+    transform var(--dur-base) var(--spring-soft),
+    box-shadow var(--dur-base) var(--spring-smooth);
+  will-change: transform;
+}
+
+.app-lift:hover {
+  transform: translate3d(0, -3px, 0);
+  box-shadow: var(--shadow-lift);
+}
+
+.app-lift:active {
+  transform: translate3d(0, -1px, 0) scale(0.995);
+  transition-duration: var(--dur-fast);
+}
+
+/* ============================================================
+ * 可访问性：尊重系统的"减少动态效果"设置
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .app-stagger > * {
+    animation-delay: 0ms !important;
+  }
+}
