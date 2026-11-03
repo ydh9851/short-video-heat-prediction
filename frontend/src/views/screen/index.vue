@@ -40,6 +40,27 @@
         <div ref="quantileChart" class="chart-body"></div>
       </div>
     </div>
+
+    <!-- 实时预测流：让大屏反映"系统是活的" -->
+    <div class="stream-card">
+      <div class="stream-head">
+        <span class="stream-title">
+          <i class="live-dot" />实时预测流
+        </span>
+        <span class="stream-sub">最近 {{ stream.length }} 条预测记录 · 每 5 秒刷新</span>
+      </div>
+      <div class="stream-body">
+        <div v-if="!stream.length" class="stream-empty">暂无预测记录</div>
+        <div v-for="(r, i) in stream" :key="r.id" class="stream-row" :class="{ fresh: i === 0 && r.fresh }">
+          <span class="c-time">{{ (r.createTime || '').slice(11) }}</span>
+          <span class="c-cat">{{ r.videoCategory }}</span>
+          <span class="c-fans">{{ fmtFans(r.authorFans) }} 粉丝</span>
+          <span class="c-hour">{{ r.publishHour }}:00 发布</span>
+          <span class="c-heat">{{ fmtInt(r.prediction) }}</span>
+          <span class="c-grade" :class="gradeClass(r.grade)">{{ r.grade }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -49,6 +70,7 @@ import { BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import dataApi from '@/api/data'
+import predictApi from '@/api/predict'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -66,7 +88,11 @@ export default {
       platformMeta: [],
       platforms: [],
       ov: {},
-      charts: {}
+      charts: {},
+      // 实时预测流
+      stream: [],
+      streamTimer: null,
+      lastStreamId: null
     }
   },
   computed: {
@@ -87,15 +113,42 @@ export default {
   mounted () {
     this.tick()
     this.clockTimer = setInterval(this.tick, 1000)
+    this.loadStream()
+    this.streamTimer = setInterval(this.loadStream, 5000)
     window.addEventListener('resize', this.resizeCharts)
   },
   beforeUnmount () {
     if (this.clockTimer) clearInterval(this.clockTimer)
+    if (this.streamTimer) clearInterval(this.streamTimer)
     window.removeEventListener('resize', this.resizeCharts)
     Object.values(this.charts).forEach(c => c && c.dispose())
     this.charts = {}
   },
   methods: {
+    /**
+     * 拉取最近预测记录并渲染成滚动流。
+     * 首次拉取或出现新记录时，最新一条会带高亮（fresh），让大屏一眼能看出"系统在跑"。
+     */
+    loadStream () {
+      predictApi.logs({ page: 1, size: 10 }).then(re => {
+        const list = (re.response && re.response.list) || []
+        const newest = list.length ? list[0].id : null
+        const isNew = this.lastStreamId != null && newest != null && newest > this.lastStreamId
+        this.lastStreamId = newest
+        this.stream = list.map((r, i) => Object.assign({}, r, { fresh: isNew && i === 0 }))
+      }).catch(() => { /* 大屏静默失败：不影响其它面板 */ })
+    },
+    fmtFans (v) {
+      const n = Number(v)
+      if (!isFinite(n)) return '—'
+      if (n >= 10000) return (n / 10000).toFixed(1) + ' 万'
+      return String(Math.round(n))
+    },
+    gradeClass (grade) {
+      if (grade === '高热度') return 'g-high'
+      if (grade === '中热度') return 'g-mid'
+      return 'g-low'
+    },
     tick () {
       const d = new Date()
       const pad = n => String(n).padStart(2, '0')
@@ -178,8 +231,9 @@ export default {
       const chart = this.chartOf('gradeChart')
       if (!chart) return
       const dist = this.ov.gradeDistribution || {}
+      // 后端返回 [{ grade, count }]，ECharts 饼图需要 [{ name, value }]，这里做一次字段归一
       const data = Array.isArray(dist)
-        ? dist
+        ? dist.map(d => ({ name: d.name || d.grade, value: Number(d.value != null ? d.value : d.count) || 0 }))
         : Object.keys(dist).map(k => ({ name: k, value: dist[k] }))
       chart.setOption({
         backgroundColor: 'transparent',
@@ -370,5 +424,141 @@ export default {
   .chart-card.wide {
     grid-column: span 1;
   }
+}
+
+/* ============ 实时预测流 ============ */
+.stream-card {
+  margin-top: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(160deg, rgba(56, 189, 248, 0.08), rgba(15, 23, 42, 0.55));
+  padding: 12px 16px 14px;
+}
+
+.stream-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.stream-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
+  animation: live-pulse 2s infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+  }
+}
+
+.stream-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.stream-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 188px;
+  overflow-y: auto;
+}
+
+.stream-row {
+  display: grid;
+  grid-template-columns: 82px 90px 120px 100px 1fr 76px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #cbd5e1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.stream-row.fresh {
+  background: rgba(52, 211, 153, 0.12);
+  animation: fresh-fade 2.4s ease-out;
+}
+
+@keyframes fresh-fade {
+  0% {
+    background: rgba(52, 211, 153, 0.28);
+  }
+  100% {
+    background: rgba(15, 23, 42, 0.35);
+  }
+}
+
+.c-time {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-cat {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.c-fans,
+.c-hour {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.c-heat {
+  color: #38bdf8;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-grade {
+  text-align: center;
+  border-radius: 4px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.g-high {
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.g-mid {
+  color: #fcd34d;
+  background: rgba(252, 211, 77, 0.14);
+}
+
+.g-low {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.stream-empty {
+  font-size: 13px;
+  color: #64748b;
+  padding: 14px 8px;
+  text-align: center;
 }
 </style>
