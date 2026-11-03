@@ -21,4 +21,13 @@ public interface PredictService {
      * 返回 {prediction, lo, hi, grade, qhat_used, target_coverage, ...}。
      */
     JsonNode interval(PredictRequestVM req);
+
+    /**
+     * 交互式 what-if：扫描某个参数的候选取值，返回预测值序列与最优建议。
+     *
+     * @param dimension 扫描维度：publishHour / publishWeekday / publishMonth / videoCategory
+     * @param req       当前参数（作为基线）
+     * @return {dimension, baseline, candidates:[{value,label,prediction,grade,gain,gain_pct}], best}
+     */
+    JsonNode whatIf(String dimension, PredictRequestVM req);
 }

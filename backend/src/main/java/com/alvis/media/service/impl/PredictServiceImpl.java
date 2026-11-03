@@ -47,6 +47,10 @@ public class PredictServiceImpl implements PredictService {
     @Value("${system.python.conformalScript:}")
     private String conformalScript;
 
+    /** 交互式 what-if 脚本（扫描参数取值，输出响应曲线） */
+    @Value("${system.python.whatIfScript:}")
+    private String whatIfScript;
+
     private static final Logger log = LoggerFactory.getLogger(PredictServiceImpl.class);
 
     private final StringRedisTemplate redisTemplate;
@@ -289,6 +293,49 @@ public class PredictServiceImpl implements PredictService {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException("计算保形预测区间失败：" + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 交互式 what-if：扫描某个参数的全部候选取值，返回响应曲线与最优建议。
+     *
+     * <p>与反事实分析的区别：反事实回答「改成哪个值」，what-if 把所有取值一次列出，
+     * 便于前端画曲线做交互式探索。
+     */
+    @Override
+    public JsonNode whatIf(String dimension, PredictRequestVM req) {
+        if (whatIfScript == null || whatIfScript.trim().isEmpty()) {
+            throw new IllegalStateException("未配置 what-if 脚本（system.python.whatIfScript）");
+        }
+        String dim = (dimension == null || dimension.trim().isEmpty()) ? "publishHour" : dimension.trim();
+        List<String> args = new ArrayList<>();
+        args.add("--dimension");
+        args.add(dim);
+        args.add("--category");
+        args.add(URLEncoder.encode(req.getVideoCategory() == null || req.getVideoCategory().trim().isEmpty()
+                ? "美食" : req.getVideoCategory().trim(), StandardCharsets.UTF_8));
+        args.add("--fans");
+        args.add(String.valueOf(req.getAuthorFans() == null ? 0.0 : req.getAuthorFans()));
+        args.add("--hour");
+        args.add(String.valueOf(req.getPublishHour() == null ? 20 : req.getPublishHour()));
+        args.add("--weekday");
+        args.add(String.valueOf(req.getPublishWeekday() == null ? 5 : req.getPublishWeekday()));
+        args.add("--month");
+        args.add(String.valueOf(req.getPublishMonth() == null ? 6 : req.getPublishMonth()));
+        args.add("--model");
+        args.add(req.getModel() == null || req.getModel().trim().isEmpty() ? "lgbm" : req.getModel().trim());
+        try {
+            String out = runner.run(whatIfScript, args, 180);
+            String json = PythonCliRunner.lastJsonLine(out);
+            JsonNode node = om.readTree(json);
+            if (node.hasNonNull("error")) {
+                throw new RuntimeException(node.path("error").asText());
+            }
+            return node;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("计算 what-if 响应曲线失败：" + e.getMessage(), e);
         }
     }
 

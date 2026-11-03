@@ -12,5 +12,7 @@ export default {
   // 常驻推理服务状态（UP / DEGRADED / DISABLED）
   engine: () => get('/api/predict/engine', null, 30000),
   // 90% 保形预测区间（拟合集 + 校准集两段式训练，耗时数秒）
-  interval: query => post('/api/predict/interval', query, 300000)
+  interval: query => post('/api/predict/interval', query, 300000),
+  // 交互式 what-if：扫描参数取值，返回响应曲线与最优建议
+  whatIf: query => get('/api/predict/whatif', query, 180000)
 }

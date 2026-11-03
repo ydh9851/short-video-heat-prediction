@@ -42,6 +42,29 @@ public class PredictController extends BaseApiController {
         return RestResponse.ok(predictService.interval(req));
     }
 
+    /**
+     * 交互式 what-if：扫描某个参数的候选取值，返回预测值曲线与最优建议。
+     * 维度可选 publishHour / publishWeekday / publishMonth / videoCategory。
+     */
+    @GetMapping("/whatif")
+    public RestResponse<JsonNode> whatIf(
+            @RequestParam(value = "dimension", defaultValue = "publishHour") String dimension,
+            @RequestParam(value = "videoCategory", defaultValue = "美食") String videoCategory,
+            @RequestParam(value = "authorFans", defaultValue = "50000") Double authorFans,
+            @RequestParam(value = "publishHour", defaultValue = "20") Integer publishHour,
+            @RequestParam(value = "publishWeekday", defaultValue = "5") Integer publishWeekday,
+            @RequestParam(value = "publishMonth", defaultValue = "6") Integer publishMonth,
+            @RequestParam(value = "model", defaultValue = "lgbm") String model) {
+        PredictRequestVM req = new PredictRequestVM();
+        req.setModel(model);
+        req.setVideoCategory(videoCategory);
+        req.setAuthorFans(authorFans);
+        req.setPublishHour(publishHour);
+        req.setPublishWeekday(publishWeekday);
+        req.setPublishMonth(publishMonth);
+        return RestResponse.ok(predictService.whatIf(dimension, req));
+    }
+
     /** 常驻推理服务状态：DISABLED（未配置）/ UP / DEGRADED（熔断中，已降级回 CLI） */
     @GetMapping("/engine")
     public RestResponse<Map<String, Object>> engine() {

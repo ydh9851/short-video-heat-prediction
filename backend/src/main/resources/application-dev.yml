@@ -31,6 +31,9 @@ system:
     quantileScript: '../algorithm/prediction/quantile_predict.py'
     # 预测区间（保形预测，带有限样本覆盖保证 + Mondrian 条件覆盖）
     conformalScript: '../algorithm/prediction/conformal_predict.py'
+
+    # 交互式 what-if（扫描参数取值，输出热度响应曲线）
+    whatIfScript: '../algorithm/prediction/what_if.py'
     # SHAP 解释质量评估（紧凑性 / 一致性 / 稳定性）
     explanationQualityScript: '../algorithm/attribution/explanation_quality.py'
     # 特征增量实验（base / +content / +text 三组特征集对照）
