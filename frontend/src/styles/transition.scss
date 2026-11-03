@@ -1,9 +1,13 @@
-// global transition css
+// 全局过渡
+//
+// 取舍：大位移 + 长时长的横向飞入是界面显得"廉价"的主因之一，
+// 内容应当"浮现"而不是"飞入"——因此位移压到 4~8px、时长压到 240ms 以内，
+// 并改用弹簧曲线，切换中途被打断也能平滑接续。
 
 /* fade */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.28s;
+  transition: opacity var(--dur-base) var(--spring-smooth);
 }
 
 .fade-enter,
@@ -11,36 +15,45 @@
   opacity: 0;
 }
 
-/* fade-transform */
-.fade-transform-leave-active,
+/* 路由切换：内容浮现 */
+.fade-transform-leave-active {
+  transition:
+    opacity var(--dur-fast) var(--spring-smooth),
+    transform var(--dur-fast) var(--spring-smooth);
+}
+
 .fade-transform-enter-active {
-  transition: all .5s;
+  transition:
+    opacity var(--dur-base) var(--spring-smooth),
+    transform var(--dur-base) var(--spring-soft);
 }
 
 .fade-transform-enter {
   opacity: 0;
-  transform: translateX(-30px);
+  transform: translate3d(0, 8px, 0) scale(0.995);
 }
 
 .fade-transform-leave-to {
   opacity: 0;
-  transform: translateX(30px);
+  transform: translate3d(0, -4px, 0) scale(0.998);
 }
 
-/* breadcrumb transition */
+/* 面包屑 */
 .breadcrumb-enter-active,
 .breadcrumb-leave-active {
-  transition: all .5s;
+  transition:
+    opacity var(--dur-base) var(--spring-smooth),
+    transform var(--dur-base) var(--spring-soft);
 }
 
 .breadcrumb-enter,
 .breadcrumb-leave-active {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translate3d(0, 6px, 0);
 }
 
 .breadcrumb-move {
-  transition: all .5s;
+  transition: transform var(--dur-base) var(--spring-soft);
 }
 
 .breadcrumb-leave-active {

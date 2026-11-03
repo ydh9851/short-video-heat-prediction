@@ -399,6 +399,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import predictApi from '@/api/predict'
 import evaluationApi from '@/api/evaluation'
 import AppEmpty from '@/components/AppEmpty'
+import { createChart, setChartOption } from '@/utils/chart'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
@@ -482,11 +483,11 @@ export default {
     renderIntervalChart () {
       const el = this.$refs.intervalChart
       if (!el || !this.interval) return
-      if (!this.charts.interval) this.charts.interval = echarts.init(el)
+      if (!this.charts.interval) this.charts.interval = createChart(echarts, el)
       const iv = this.interval.interval
       const lower = Math.max(iv.p10, 0)
       const span = Math.max(iv.p90 - lower, 1)
-      this.charts.interval.setOption({
+      setChartOption(this.charts.interval, {
         grid: { left: 10, right: 30, top: 26, bottom: 8, containLabel: true },
         tooltip: {
           trigger: 'axis',
@@ -542,10 +543,10 @@ export default {
     renderModelChart () {
       const el = this.$refs.modelChart
       if (!el || !this.metrics.length) return
-      if (!this.charts.model) this.charts.model = echarts.init(el)
+      if (!this.charts.model) this.charts.model = createChart(echarts, el)
       const nameMap = { lgbm: 'LightGBM', xgb: 'XGBoost', rf: '随机森林', lr: '线性回归', knn: 'K 近邻', dt: '决策树', svm: 'SVR' }
       const list = this.metrics.filter(m => m.trained)
-      this.charts.model.setOption({
+      setChartOption(this.charts.model, {
         grid: { left: 6, right: 16, top: 20, bottom: 6, containLabel: true },
         tooltip: {
           trigger: 'axis',
@@ -649,13 +650,13 @@ export default {
     renderWhatIfChart () {
       const el = this.$refs.whatifChart
       if (!el || !this.whatif) return
-      if (!this.charts.whatif) this.charts.whatif = echarts.init(el)
+      if (!this.charts.whatif) this.charts.whatif = createChart(echarts, el)
       const items = this.whatif.candidates || []
       const labels = items.map(c => c.label)
       const values = items.map(c => Math.round(c.prediction))
       const currentLabel = this.whatif.current_label
       const curIdx = labels.indexOf(currentLabel)
-      this.charts.whatif.setOption({
+      setChartOption(this.charts.whatif, {
         grid: { left: 58, right: 24, top: 28, bottom: 34 },
         tooltip: {
           trigger: 'axis',

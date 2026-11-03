@@ -1,0 +1,122 @@
+/* ============================================================
+ * Element Plus 主题覆盖
+ * ------------------------------------------------------------
+ * Element Plus 默认主色是 #409EFF（蓝），与本项目的靛紫 #6366f1 不一致，
+ * 导致 el-button / el-tag / el-switch 等内置组件与自定义卡片、图表
+ * 摆在同一页时出现明显色差——这是"视觉割裂"的根源。
+ *
+ * 这里用 CSS 变量覆盖（Element Plus 2.3+ 官方支持），不改动构建流程，
+ * 升级组件库也不会失效。各 light 变体按与白色混合的公式推导，
+ * dark-2 与 theme.scss 中的 --app-primary-dark 保持一致。
+ * ============================================================ */
+
+:root {
+  /* 主色及其派生色 */
+  --el-color-primary: #6366f1;
+  --el-color-primary-light-3: #9494f5;
+  --el-color-primary-light-5: #b1b3f8;
+  --el-color-primary-light-7: #ced1fb;
+  --el-color-primary-light-8: #dfe0fc;
+  --el-color-primary-light-9: #f0f0fd;
+  --el-color-primary-dark-2: #4f52c1;
+
+  /* 语义色：与项目令牌一致，避免与自定义徽章撞色 */
+  --el-color-success: #10b981;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-color-error: #ef4444;
+  --el-color-info: #64748b;
+
+  /* 圆角：与卡片圆角统一 */
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 14px;
+
+  /* 字体：跟随系统中文字体，避免组件与自定义区域字形不一致 */
+  --el-font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+
+  /* 边框色：比默认更轻，避免表格线抢戏 */
+  --el-border-color: #ebeef4;
+  --el-border-color-light: #f1f4f9;
+  --el-border-color-lighter: #f6f8fb;
+  --el-fill-color-blank: #ffffff;
+  --el-text-color-primary: #1e293b;
+  --el-text-color-regular: #475569;
+}
+
+/* ============================================================
+ * 交互反馈：所有可点击元素都用弹簧曲线回到原位，可被打断
+ * ============================================================ */
+
+.el-button {
+  transition:
+    transform var(--dur-fast) var(--spring-soft),
+    box-shadow var(--dur-base) var(--spring-smooth),
+    background-color var(--dur-fast) var(--spring-smooth),
+    border-color var(--dur-fast) var(--spring-smooth);
+
+  &:active:not(.is-disabled) {
+    transform: scale(0.97);
+  }
+}
+
+.el-tag {
+  transition:
+    transform var(--dur-fast) var(--spring-soft),
+    box-shadow var(--dur-fast) var(--spring-smooth);
+}
+
+/* 表格行：悬浮高亮 + 轻微左移，指示"这一行可点" */
+.el-table {
+  .el-table__body tr {
+    transition:
+      background-color var(--dur-fast) var(--spring-smooth),
+      transform var(--dur-fast) var(--spring-soft);
+
+    &:hover > td.el-table__cell {
+      background-color: var(--app-primary-soft) !important;
+    }
+  }
+}
+
+.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--app-primary-soft);
+}
+
+/* 输入类控件：聚焦时边框与阴影同步过渡 */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  transition:
+    box-shadow var(--dur-base) var(--spring-smooth),
+    border-color var(--dur-fast) var(--spring-smooth);
+}
+
+/* 卡片与面板：统一的抬升反馈 */
+.el-card {
+  transition:
+    transform var(--dur-base) var(--spring-soft),
+    box-shadow var(--dur-base) var(--spring-smooth);
+
+  &:hover {
+    box-shadow: var(--shadow-soft);
+  }
+}
+
+/* 菜单项：选中态用弹簧滑块，移动端与折叠态同样生效 */
+.el-menu-item,
+.el-sub-menu__title {
+  transition:
+    background-color var(--dur-fast) var(--spring-smooth),
+    color var(--dur-fast) var(--spring-smooth),
+    transform var(--dur-fast) var(--spring-soft);
+}
+
+/* 开关与滑块 */
+.el-switch,
+.el-slider__button {
+  transition:
+    background-color var(--dur-base) var(--spring-smooth),
+    transform var(--dur-fast) var(--spring-soft);
+}
