@@ -164,7 +164,7 @@ def save_registry(reg: dict):
 
 
 def dataset_overview(clean: pd.DataFrame) -> dict:
-    """从归一化后的数据生成供前端/论文使用的元信息。"""
+    """从归一化后的数据生成元信息（供前端读取）。"""
     heat = pd.to_numeric(clean["heat"], errors="coerce").dropna()
     fans = pd.to_numeric(clean["author_fans"], errors="coerce").dropna()
     pt = pd.to_datetime(clean["publish_time"], errors="coerce").dropna()

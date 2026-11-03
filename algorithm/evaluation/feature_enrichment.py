@@ -11,7 +11,7 @@
 目标口径：heat = 浏览量 + 3×点赞 + 5×评论（YouTube 无转发字段），训练目标 log1p(heat)。
 防泄漏：点赞/评论/浏览量本身是目标组成部分，一律不进特征；频道订阅数取首次上榜快照。
 
-输出单行 JSON，含三组特征的 R²(log)/RMSE/MAE 与增益，可直接作为论文「特征体系设计」一节的证据。
+输出单行 JSON，含三组特征的 R²(log)/RMSE/MAE 与增益。
 
 CLI：
   python feature_enrichment.py --folds 5 [--sample 200000]

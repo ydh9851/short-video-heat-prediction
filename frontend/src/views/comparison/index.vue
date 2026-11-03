@@ -76,7 +76,7 @@
     <el-card shadow="never" class="block-card">
       <div class="card-head">
         <div class="section-title">数据集元信息对照</div>
-        <span class="muted">字段映射与口径差异如实记录，便于论文中说明</span>
+        <span class="muted">字段映射与口径差异如实记录</span>
       </div>
       <el-table :data="platforms" size="small" stripe>
         <el-table-column prop="displayName" label="平台" width="110" />
@@ -143,7 +143,7 @@
       <ul class="conclusion-list">
         <li>
           <b>热度口径</b>：统一为「播放量 + 3×点赞 + 5×评论 + 8×转发」。YouTube 公开数据无转发字段，
-          该平台转发项按 0 计入——这会在对比表中标注，论文中需作为 limitation 说明。
+          该平台转发项按 0 计入——对比表中已标注该口径差异。
         </li>
         <li>
           <b>作者规模口径</b>：抖音 = 作者粉丝数；YouTube = 频道订阅数；B 站 = UP 主粉丝数。

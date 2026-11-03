@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * 模型评估与实验分析：统一调度 algorithm/evaluation、prediction/quantile_predict、
- * attribution（交互效应 / 反事实）等 Python 算法模块，为论文实验章节提供可复现证据。
+ * attribution（交互效应 / 反事实）等 Python 算法模块，提供可复现的实验结果。
  */
 public interface EvaluationService {
 

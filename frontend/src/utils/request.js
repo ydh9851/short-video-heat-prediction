@@ -19,7 +19,7 @@ function extractTraceId (e) {
 
 /**
  * 统一错误提示：右下角通知，右下角不遮挡主内容。
- * 消息体带上 traceId 与排查指引——答辩现场出错时，这一行就能说明系统是可追溯的。
+ * 消息体带上 traceId 与排查指引，便于按 traceId 定位后端日志。
  */
 function notifyError (e, fallback) {
   const body = e && e.response ? e.response.data : e

@@ -157,7 +157,7 @@ def mode_conformal(model="lgbm", alpha=0.1, platform=None):
         **st,
     }
 
-    # 条件覆盖：按真实等级分组统计（论文里最关心「高热度是否被覆盖」）
+    # 条件覆盖：按真实等级分组统计，检验高热度档是否被覆盖
     true_groups = _grade_groups(y_test_raw)
     by_grade = []
     for g in ["低热度", "中热度", "高热度"]:
