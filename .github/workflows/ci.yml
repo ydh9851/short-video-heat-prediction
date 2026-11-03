@@ -63,3 +63,21 @@ jobs:
         run: |
           npm ci --registry=https://registry.npmmirror.com
           npm run build
+
+  evaluation-smoke:
+    name: 评估冒烟（指标不回归）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 安装算法依赖
+        # 交叉验证需要 LightGBM 与 scikit-learn；此处不装 SHAP 等仅归因分析用到的包。
+        run: |
+          python -m pip install --quiet numpy pandas scipy scikit-learn lightgbm matplotlib
+      - name: 核心指标冒烟检查
+        # 单元测试只能证明代码没写错，证明不了模型突然变差。
+        # 这里跑一次轻量交叉验证并对关键指标设阈值，
+        # 依赖升级、特征口径调整、数据文件替换导致的指标下滑会直接让流水线失败。
+        run: python algorithm/evaluation/smoke_check.py --folds 3

@@ -65,6 +65,20 @@ MODELS = ["lr", "knn", "svm", "dt", "rf", "lgbm", "xgb"]
 FEATURE_VERSION = 2
 
 
+def _current_data_version():
+    """当前训练集的数据集版本号（由 datasets/versioning.py 维护）；取不到时返回空串。"""
+    try:
+        import sys
+        datasets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                    "datasets")
+        if datasets_dir not in sys.path:
+            sys.path.insert(0, datasets_dir)
+        import versioning
+        return versioning.current_version("douyin")
+    except Exception:
+        return ""
+
+
 def _stdout_reconfigure():
     """Windows 管道下统一 UTF-8 输出，Java 端按 UTF-8 解码。"""
     for stream in (sys.stdout, sys.stderr):
@@ -238,6 +252,8 @@ def train_and_cache(name, platform=None):
         "model": model, "metrics": metrics_log, "metrics_raw": metrics_raw,
         "feature_names": FEATURE_NAMES, "meta": meta,
         "feature_version": FEATURE_VERSION,
+        # 训练所用数据集的版本号：指标变化时可区分是模型改动还是数据替换
+        "data_version": _current_data_version(),
     }
     joblib.dump(bundle, cache_path(name, platform), compress=3)
     return metrics_log, metrics_raw

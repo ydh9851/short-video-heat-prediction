@@ -38,6 +38,23 @@ def _version_of(path, bundle):
     return "v%s-%s" % (fv, stamp)
 
 
+def _current_data_version():
+    """当前训练集的数据集版本号；未登记时返回空串。
+
+    数据集版本由 algorithm/datasets/versioning.py 维护：导入新数据会登记新版本，
+    这里读取最近一版，使模型版本与数据版本形成可追溯的对应关系。
+    """
+    try:
+        import sys
+        datasets_dir = os.path.join(SYSTEM_ROOT, "algorithm", "datasets")
+        if datasets_dir not in sys.path:
+            sys.path.insert(0, datasets_dir)
+        import versioning
+        return versioning.current_version("douyin")
+    except Exception:
+        return ""
+
+
 def _read_registry():
     if os.path.isfile(REGISTRY):
         try:
@@ -76,6 +93,8 @@ def sync():
                 "version": version,
                 "stage": "staging",
                 "featureVersion": bundle.get("feature_version", P.FEATURE_VERSION),
+                # 训练时所用数据集的版本号，用于回答"指标变了是模型改坏了还是数据换了"
+                "dataVersion": bundle.get("data_version") or _current_data_version(),
                 "r2": metrics.get("r2"),
                 "mae": metrics.get("mae"),
                 "rmse": metrics.get("rmse"),
@@ -113,6 +132,8 @@ def summary(reg):
                     "stage": v.get("stage"),
                     "r2": v.get("r2"),
                     "trainedAt": v.get("trainedAt"),
+                    # 训练所用数据集版本：指标变化时可区分是模型改动还是数据替换
+                    "dataVersion": v.get("dataVersion"),
                 }
                 for v in reversed(versions)
             ],

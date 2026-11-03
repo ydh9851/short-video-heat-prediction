@@ -43,6 +43,7 @@ PROCESSED_DIR = os.path.join(DATA_DIR, "processed")
 REGISTRY_PATH = os.path.join(PROCESSED_DIR, "dataset_registry.json")
 
 sys.path.insert(0, SCRIPT_DIR)
+import versioning  # noqa: E402
 from platform_schema import (  # noqa: E402
     UNIFIED_COLUMNS, PLATFORM_NAMES, resolve_columns, compute_heat,
 )
@@ -267,6 +268,15 @@ def ingest(platform: str, path: str, display_name: str = None) -> dict:
     if not reg.get("defaultPlatform"):
         reg["defaultPlatform"] = platform
     save_registry(reg)
+
+    # 登记数据集版本：内容指纹 + 时间戳，使模型版本可追溯到具体的数据版本
+    version_entry = versioning.register(platform, clean_path, {
+        "rows": meta.get("rows"),
+        "category_count": meta.get("categoryCount"),
+    })
+    if version_entry:
+        meta["dataVersion"] = version_entry["version"]
+        save_registry(reg)
 
     return {
         "code": 1,

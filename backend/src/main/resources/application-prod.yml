@@ -12,3 +12,28 @@ spring:
 
 logging:
   path: ${LOG_PATH:./log/}
+# 算法脚本配置：路径为相对路径，以「backend 目录」为工作目录解析，
+# 与开发环境保持同一套约定——容器内的工作目录同样是 /app/backend，
+# 因此本地与容器无需两套配置。
+system:
+  python:
+    path: ${PYTHON_BIN:python3}
+    predictScript: '../algorithm/prediction/predict_api.py'
+    attributionScript: '../algorithm/attribution/shap_analysis.py'
+    gradingScript: '../algorithm/grading/grade_cluster.py'
+    evaluationScript: '../algorithm/evaluation/model_evaluation.py'
+    quantileScript: '../algorithm/prediction/quantile_predict.py'
+    conformalScript: '../algorithm/prediction/conformal_predict.py'
+    whatIfScript: '../algorithm/prediction/what_if.py'
+    explanationQualityScript: '../algorithm/attribution/explanation_quality.py'
+    featureEnrichmentScript: '../algorithm/evaluation/feature_enrichment.py'
+    twoStageScript: '../algorithm/evaluation/two_stage.py'
+    reportScript: '../algorithm/attribution/build_report.py'
+    refutationScript: '../algorithm/attribution/refutation.py'
+    targetCompareScript: '../algorithm/evaluation/target_compare.py'
+    registryScript: '../algorithm/prediction/registry.py'
+    growthScript: '../algorithm/prediction/growth_predict.py'
+    ingestScript: '../algorithm/datasets/ingest.py'
+    # 常驻推理服务：容器内指向 engine 服务，不能用 127.0.0.1
+    serviceUrl: ${ENGINE_SERVICE_URL:http://127.0.0.1:8100}
+    serviceTimeoutMs: 5000

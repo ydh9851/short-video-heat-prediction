@@ -84,6 +84,18 @@
           <template #default="{ row }">{{ row.sizeMB == null ? '-' : row.sizeMB + ' MB' }}</template>
         </el-table-column>
         <el-table-column prop="trainedAt" label="训练时间" width="160" />
+        <el-table-column label="数据版本" width="180">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="row.dataVersion"
+              content="该模型训练时所用的数据集版本；指标变化时可据此区分是模型改动还是数据替换"
+              placement="top"
+            >
+              <span class="data-version">{{ row.dataVersion }}</span>
+            </el-tooltip>
+            <span v-else class="muted">未记录</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="210">
           <template #default="{ row }">
             <el-select
@@ -340,5 +352,16 @@ export default {
 .muted {
   font-size: 12px;
   color: #94a3b8;
+}
+
+/* 数据版本标记：等宽字体，便于与版本号对照 */
+.data-version {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: #4f46e5;
+  background: #f4f3ff;
+  border: 1px solid #e4e1fb;
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 </style>

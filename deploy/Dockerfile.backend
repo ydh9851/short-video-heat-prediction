@@ -1,0 +1,67 @@
+# 后端应用镜像（含前端静态资源与算法运行环境）
+#
+# 为什么镜像里要带 Python：Spring Boot 通过 ProcessBuilder 以 CLI 方式调用
+# algorithm/ 下的 Python 脚本做实验与归因，因此运行时必须有 Python 与算法依赖。
+# 只做推理时后端会走常驻引擎（HTTP），但 17 类实验仍依赖 CLI 通道。
+#
+# 构建上下文为仓库根目录：
+#   docker build -f deploy/Dockerfile.backend -t heat-backend:latest .
+
+# ---------- 阶段 1：构建前端 ----------
+FROM node:22-alpine AS frontend
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---------- 阶段 2：构建后端 ----------
+FROM maven:3.9-eclipse-temurin-17 AS backend-build
+WORKDIR /app
+COPY backend/pom.xml ./
+RUN mvn -B -q dependency:go-offline
+COPY backend/src ./src
+# 前端产物放进后端静态资源目录，由 Spring Boot 一并伺服
+COPY --from=frontend /app/admin ./src/main/resources/static/admin
+RUN mvn -B -q -DskipTests package
+
+# ---------- 阶段 3：运行时 ----------
+FROM eclipse-temurin:17-jre-jammy
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 python3-pip \
+        fonts-wqy-zenhei \
+        libgomp1 \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 目录结构与本地保持一致：
+#   /app/backend/app.jar   后端应用（工作目录）
+#   /app/algorithm/        算法脚本
+#   /app/data/             数据集
+# 这样配置里 ../algorithm、../data 这类相对路径在容器内外含义相同，
+# 不必为容器另写一套配置。
+WORKDIR /app/backend
+
+# 算法依赖（LightGBM / SHAP 等）
+COPY requirements.txt /app/requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r /app/requirements.txt
+
+# 后端 jar
+COPY --from=backend-build /app/target/*.jar app.jar
+
+# 算法脚本与数据
+COPY algorithm/ /app/algorithm/
+COPY data/ /app/data/
+
+ENV TZ=Asia/Shanghai \
+    SPRING_PROFILES_ACTIVE=prod \
+    PYTHONPATH=/app/algorithm \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=6 \
+    CMD curl -fsS http://127.0.0.1:8000/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

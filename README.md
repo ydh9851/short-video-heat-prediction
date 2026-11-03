@@ -85,7 +85,9 @@
 | 长任务调度 | 分钟级实验走独立线程池（`EvaluationTaskConfig`），任务状态存 Redis，前端 `/submit` + `/task/{id}` 轮询，不再占用 HTTP 长连接 |
 | 实验治理 | 实验完成/失败自动追加 `data/logs/experiment_runs.jsonl`（MLflow Tracking 的 run 概念），`/api/evaluation/runs` 可回看历史，一条记录对齐参数、耗时、traceId 与结果 |
 | 限流与指标 | `/api/predict` 等昂贵接口按 IP 令牌桶限流（默认 10 QPS / 突发 20，超限返回 429 带 traceId）；Micrometer 指标经 `/actuator/prometheus` 暴露（`predict_latency_seconds{source=engine|cli}`、`predict_requests_total`、`predict_engine_fallback`） |
-| 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + **算法单元测试** + 后端测试 + 前端构建四阶段 |
+| 持续集成 | `.github/workflows/ci.yml`：Python 语法检查 + **算法单元测试** + 后端测试 + 前端构建 + **评估冒烟**五阶段；最后一档跑一次轻量交叉验证并对 R²(log)、相对线性回归的 MAE 比值设阈值，指标下滑会直接让流水线失败（单元测试只能证明代码没写错，证明不了模型变差） |
+| 一键部署 | `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d` 拉起 MySQL + Redis + 常驻算法引擎 + 后端四个服务；启动顺序由 healthcheck 保证（库就绪 → 引擎健康 → 后端启动），首次启动自动建库建表并写入种子数据；详见 `deploy/README.md` |
+| 数据可追溯 | 数据集按内容指纹（SHA-256）登记版本（`data/processed/dataset_versions.json`），模型注册表记录每个模型版本**训练所用的数据版本**，指标变化时可区分「模型改动」与「数据替换」；模型治理页直接展示该字段 |
 | 凭据管理 | 密码以 **BCrypt 单向哈希**入库（不可逆、自带随机盐）；数据库口令与第三方凭据一律走环境变量（`DB_PASSWORD` / `WX_APPID`），仓库内不含任何真实凭据；新增/修改用户时自动加盐哈希，登录走 `PasswordEncoder.matches` |
 | 前端体验 | **实验中心**（17 类实验分组目录 + 推荐演示路径 + 结论卡 + 台账对比）、**模型治理页**（版本阶段 / 影子偏差 / 引擎状态）、首页关键指标标注来源实验、数据质量首屏徽章速览 |
 | 演示模式 | 地址加 `?demo=1` 进入演示模式：侧栏折叠、隐藏标签栏，只留结论相关元素；归因页顶部直接显示解释可信度三指标，反事实结果附「结论稳定性」提示 |
@@ -119,6 +121,7 @@ short-video-heat-prediction/
 │   ├── src/api/            #   axios 封装
 │   └── vite.config.js      #   outDir = admin，构建产物同步到后端 static/admin
 ├── sql/                    #   数据库初始化脚本
+├── deploy/                 #   Docker 部署（compose + 两个 Dockerfile + 部署说明）
 ├── data/
 │   ├── processed/          #   规范化数据（ingest.py 产出，除 dataset_registry.json 外均可重跑）
 │   └── raw/                #   原始数据（体积大，不入库；见下方数据获取）
@@ -163,9 +166,22 @@ python algorithm/datasets/ingest.py
 
 ---
 
-## 快速启动（Windows）
+## 快速启动
 
-### 前置条件
+### 方式一：Docker（推荐，给别人一台干净机器）
+
+```batch
+copy deploy\.env.example deploy\.env
+docker compose -f deploy\docker-compose.yml --env-file deploy\.env up -d
+```
+
+四个服务（MySQL / Redis / 常驻算法引擎 / 后端）一次拉起，首次启动自动建库建表；
+启动顺序由健康检查保证，不需要手动装 JDK、Node、Python 或导入 SQL。
+详见 [`deploy/README.md`](./deploy/README.md)。
+
+### 方式二：本地开发（Windows）
+
+前置条件：
 
 | 依赖 | 版本 | 说明 |
 |---|---|---|
@@ -175,8 +191,6 @@ python algorithm/datasets/ingest.py
 | Python | 3.10+ | 算法引擎 |
 | MySQL | 8.0 | 数据库，默认端口 3306，密码 `123456` |
 | Redis | 5+ | 默认端口 6379 |
-
-### 一键启动
 
 ```batch
 :: 1. 初始化 Python 虚拟环境 + 装依赖

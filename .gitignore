@@ -79,3 +79,6 @@ backend/src/main/resources/application-local.yml
 .playwright-cli/
 .pytest_cache/
 __pycache__/
+
+# 部署环境的本地配置（含口令），只提交 .env.example
+deploy/.env

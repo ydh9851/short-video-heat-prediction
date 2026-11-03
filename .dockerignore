@@ -1,0 +1,20 @@
+# 构建镜像时忽略的目录：减小构建上下文，避免把本地产物与缓存打进镜像。
+# 注意：data/ 下的数据集必须保留——容器需要自带训练数据才能开箱预测，
+# 否则首次启动只能跑通空壳接口。
+.git
+.github
+.idea
+.vscode
+.venv
+node_modules
+**/node_modules
+**/target
+**/admin
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.playwright-cli
+data/logs
+backend/log
+docs/screenshots
+*.log

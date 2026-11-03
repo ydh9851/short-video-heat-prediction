@@ -1,0 +1,13 @@
+{
+  "datasets": {
+    "douyin": [
+      {
+        "version": "v20261104-010645-414489",
+        "fingerprint": "414489956bf2",
+        "file": "train_clean.csv",
+        "rows": 36381,
+        "registered_at": "2026-11-04 01:06:45"
+      }
+    ]
+  }
+}

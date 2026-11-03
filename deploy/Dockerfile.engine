@@ -1,0 +1,37 @@
+# 常驻算法引擎镜像
+#
+# 该服务承载 LightGBM 推理与批量预测，走 HTTP 常驻通道，
+# 避免每次请求都重新加载模型（CLI 通道首次约需数秒，常驻通道约 34ms）。
+#
+# 构建上下文为仓库根目录：
+#   docker build -f deploy/Dockerfile.engine -t heat-engine:latest .
+
+FROM python:3.12-slim
+
+# 算法脚本里用到中文类别名与中文图表标签，
+# 因此镜像内必须带中文字体，否则 matplotlib 出图会显示方框。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        fonts-wqy-zenhei \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 依赖单独一层：算法依赖变动时不必重装全部包
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY algorithm/ ./algorithm/
+COPY data/ ./data/
+
+ENV PYTHONPATH=/app/algorithm \
+    PYTHONUNBUFFERED=1 \
+    TZ=Asia/Shanghai
+
+EXPOSE 8100
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=4).status == 200 else 1)"
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8100", "--app-dir", "algorithm/service"]
