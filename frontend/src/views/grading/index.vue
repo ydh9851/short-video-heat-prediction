@@ -19,9 +19,9 @@
         <div class="ctrl-item">
           <span class="ctrl-label">聚类簇数 k</span>
           <el-radio-group v-model="k" @change="load">
-            <el-radio-button :label="3">3 级</el-radio-button>
-            <el-radio-button :label="4">4 级</el-radio-button>
-            <el-radio-button :label="5">5 级</el-radio-button>
+            <el-radio-button :value="3">3 级</el-radio-button>
+            <el-radio-button :value="4">4 级</el-radio-button>
+            <el-radio-button :value="5">5 级</el-radio-button>
           </el-radio-group>
         </div>
         <div class="ctrl-item">

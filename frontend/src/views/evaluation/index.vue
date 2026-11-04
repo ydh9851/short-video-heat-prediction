@@ -105,27 +105,27 @@
         <template v-if="current === 'cv'">
           <span class="param-label">交叉验证折数</span>
           <el-radio-group v-model="form.folds">
-            <el-radio-button :label="3">3 折</el-radio-button>
-            <el-radio-button :label="5">5 折</el-radio-button>
-            <el-radio-button :label="10">10 折</el-radio-button>
+            <el-radio-button :value="3">3 折</el-radio-button>
+            <el-radio-button :value="5">5 折</el-radio-button>
+            <el-radio-button :value="10">10 折</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'tuning'">
           <span class="param-label">随机搜索试验次数</span>
           <el-radio-group v-model="form.trials">
-            <el-radio-button :label="8">8 次</el-radio-button>
-            <el-radio-button :label="12">12 次</el-radio-button>
-            <el-radio-button :label="20">20 次</el-radio-button>
+            <el-radio-button :value="8">8 次</el-radio-button>
+            <el-radio-button :value="12">12 次</el-radio-button>
+            <el-radio-button :value="20">20 次</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'importance' || current === 'cross-platform'">
           <span class="param-label">SHAP 采样行数</span>
           <el-radio-group v-model="form.sample">
-            <el-radio-button :label="1000">1,000</el-radio-button>
-            <el-radio-button :label="2000">2,000</el-radio-button>
-            <el-radio-button :label="4000">4,000</el-radio-button>
+            <el-radio-button :value="1000">1,000</el-radio-button>
+            <el-radio-button :value="2000">2,000</el-radio-button>
+            <el-radio-button :value="4000">4,000</el-radio-button>
           </el-radio-group>
         </template>
 
@@ -151,51 +151,51 @@
         <template v-else-if="current === 'growth'">
           <span class="param-label">参与建模视频数</span>
           <el-radio-group v-model="form.sample">
-            <el-radio-button :label="5000">5,000</el-radio-button>
-            <el-radio-button :label="20000">20,000</el-radio-button>
-            <el-radio-button :label="50000">50,000</el-radio-button>
+            <el-radio-button :value="5000">5,000</el-radio-button>
+            <el-radio-button :value="20000">20,000</el-radio-button>
+            <el-radio-button :value="50000">50,000</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'conformal'">
           <span class="param-label">置信水平</span>
           <el-radio-group v-model="form.alpha">
-            <el-radio-button :label="0.2">80%</el-radio-button>
-            <el-radio-button :label="0.1">90%</el-radio-button>
-            <el-radio-button :label="0.05">95%</el-radio-button>
+            <el-radio-button :value="0.2">80%</el-radio-button>
+            <el-radio-button :value="0.1">90%</el-radio-button>
+            <el-radio-button :value="0.05">95%</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'explanation-quality'">
           <span class="param-label">解释样本数</span>
           <el-radio-group v-model="form.sample">
-            <el-radio-button :label="1000">1,000</el-radio-button>
-            <el-radio-button :label="2000">2,000</el-radio-button>
-            <el-radio-button :label="4000">4,000</el-radio-button>
+            <el-radio-button :value="1000">1,000</el-radio-button>
+            <el-radio-button :value="2000">2,000</el-radio-button>
+            <el-radio-button :value="4000">4,000</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'feature-enrichment'">
           <span class="param-label">交叉验证折数</span>
           <el-radio-group v-model="form.folds">
-            <el-radio-button :label="3">3 折</el-radio-button>
-            <el-radio-button :label="5">5 折</el-radio-button>
+            <el-radio-button :value="3">3 折</el-radio-button>
+            <el-radio-button :value="5">5 折</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'two-stage'">
           <span class="param-label">交叉验证折数</span>
           <el-radio-group v-model="form.folds">
-            <el-radio-button :label="3">3 折</el-radio-button>
-            <el-radio-button :label="5">5 折</el-radio-button>
+            <el-radio-button :value="3">3 折</el-radio-button>
+            <el-radio-button :value="5">5 折</el-radio-button>
           </el-radio-group>
         </template>
 
         <template v-else-if="current === 'refutation'">
           <span class="param-label">子集重估次数</span>
           <el-radio-group v-model="form.folds">
-            <el-radio-button :label="3">3 次</el-radio-button>
-            <el-radio-button :label="5">5 次</el-radio-button>
+            <el-radio-button :value="3">3 次</el-radio-button>
+            <el-radio-button :value="5">5 次</el-radio-button>
           </el-radio-group>
         </template>
 

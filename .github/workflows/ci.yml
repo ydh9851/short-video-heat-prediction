@@ -63,6 +63,11 @@ jobs:
         run: |
           npm ci --registry=https://registry.npmmirror.com
           npm run build
+      - name: 前端纯函数单元测试
+        # 用 Node 内置的 test 运行器，不引入测试框架依赖；
+        # 覆盖批量预测输入解析的边界情况（空输入、列数不足、非数字、越界、超量）。
+        working-directory: frontend
+        run: node --test "tests/*.test.mjs"
 
   evaluation-smoke:
     name: 评估冒烟（指标不回归）

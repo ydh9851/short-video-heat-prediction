@@ -119,117 +119,18 @@
                 </div>
               </div>
 
-              <div class="interval-block">
-                <div class="interval-head">
-                  <div class="section-title">预测区间（LightGBM 分位数回归）</div>
-                  <span v-if="interval" class="coverage-tip">
-                    测试集区间覆盖率 {{ pct(interval.coverage_report && interval.coverage_report.coverage) }}
-                  </span>
-                </div>
-                <div v-if="interval" ref="intervalChart" class="interval-chart" />
-                <app-empty v-else compact title="区间模型加载中…" description="正在计算 LightGBM 分位数回归的 P10 / P50 / P90" />
-                <div v-if="interval" class="interval-legend">
-                  <span><i class="dot p10" />P10 保守 {{ formatNum(interval.interval.p10) }}</span>
-                  <span><i class="dot p50" />P50 中性 {{ formatNum(interval.interval.p50) }}</span>
-                  <span><i class="dot p90" />P90 乐观 {{ formatNum(interval.interval.p90) }}</span>
-                  <span class="muted">区间宽度 {{ formatNum(interval.width) }}</span>
-                </div>
-                <div v-if="interval" class="interval-warn">
-                  分位数回归只做事后检验：测试集覆盖率 {{ pct(interval.coverage_report && interval.coverage_report.coverage) }}，
-                  低于名义 80%，且没有覆盖保证。下方保形区间可作对照。
-                </div>
-              </div>
+              <interval-panel :interval="interval" />
 
-              <div class="conformal-block">
-                <div class="interval-head">
-                  <div class="section-title">90% 保形预测区间（有限样本覆盖保证）</div>
-                  <el-button size="small" type="primary" plain :loading="conformalLoading" @click="loadConformal">
-                    {{ conformal ? '重新计算' : '计算保形区间' }}
-                  </el-button>
-                </div>
-                <div v-if="conformal" class="conformal-body">
-                  <div class="cf-row">
-                    <div class="cf-item">
-                      <span>下界</span>
-                      <b>{{ formatNum(conformal.lo) }}</b>
-                    </div>
-                    <div class="cf-item">
-                      <span>点预测</span>
-                      <b class="cf-mid">{{ formatNum(conformal.prediction) }}</b>
-                    </div>
-                    <div class="cf-item">
-                      <span>上界</span>
-                      <b>{{ formatNum(conformal.hi) }}</b>
-                    </div>
-                    <div class="cf-item">
-                      <span>热度等级</span>
-                      <b>{{ conformal.grade }}</b>
-                    </div>
-                  </div>
-                  <div class="cf-note">
-                    名义覆盖 90%，实测覆盖率 <b>89.5%</b>（保形法在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α）；
-                    Mondrian 分组「{{ conformal.mondrian_group }}」，q̂ = {{ fmt(conformal.qhat_used, 3) }}。
-                    代价是区间更宽——这是「保证优先」而非「宽度优先」的取舍。
-                  </div>
-                </div>
-                <app-empty
-                  v-else
-                  compact
-                  title="保形区间尚未计算"
-                  description="点击「计算保形区间」，用 Split Conformal + Mondrian 给出带覆盖保证的 90% 区间"
-                />
-              </div>
+              <conformal-panel :conformal="conformal" :loading="conformalLoading" @recalc="loadConformal" />
 
               <!-- ============ 交互式 what-if ============ -->
-              <div class="whatif-block">
-                <div class="interval-head">
-                  <div class="section-title">交互式 what-if：如果改这个参数会怎样</div>
-                  <div class="whatif-actions">
-                    <el-radio-group v-model="whatifDimension" size="small" @change="loadWhatIf">
-                      <el-radio-button label="publishHour">发布时段</el-radio-button>
-                      <el-radio-button label="publishWeekday">发布星期</el-radio-button>
-                      <el-radio-button label="publishMonth">发布月份</el-radio-button>
-                      <el-radio-button label="videoCategory">视频类别</el-radio-button>
-                    </el-radio-group>
-                    <el-button size="small" type="primary" plain :loading="whatifLoading" @click="loadWhatIf">
-                      {{ whatif ? '重新计算' : '开始探索' }}
-                    </el-button>
-                  </div>
-                </div>
-                <div v-if="whatif" class="whatif-body">
-                  <div ref="whatifChart" class="whatif-chart" />
-                  <div class="whatif-summary">
-                    <div class="wi-item">
-                      <span>当前取值</span>
-                      <b>{{ whatif.current_label || '—' }}</b>
-                    </div>
-                    <div class="wi-item">
-                      <span>当前预测热度</span>
-                      <b>{{ formatNum(whatif.baseline) }}</b>
-                      <em>{{ whatif.baseline_grade }}</em>
-                    </div>
-                    <div class="wi-item best">
-                      <span>最优取值</span>
-                      <b>{{ whatif.best.label }}</b>
-                      <em>{{ formatNum(whatif.best.prediction) }} · {{ whatif.best.grade }}</em>
-                    </div>
-                    <div class="wi-item">
-                      <span>可获得增益</span>
-                      <b class="up">+{{ (whatif.best.gain_pct * 100).toFixed(1) }}%</b>
-                      <em>{{ formatNum(whatif.best.gain) }}</em>
-                    </div>
-                  </div>
-                  <div class="whatif-note">
-                    {{ whatif.note }}
-                  </div>
-                </div>
-                <app-empty
-                  v-else
-                  compact
-                  title="尚未探索"
-                  description="选择一个维度后点击「开始探索」，系统会在同一模型上扫描该参数的全部候选取值，给出响应曲线与最优建议"
-                />
-              </div>
+              <what-if-panel
+                :whatif="whatif"
+                :loading="whatifLoading"
+                :dimension="whatifDimension"
+                @recalc="loadWhatIf"
+                @dimension-change="onWhatIfDimensionChange"
+              />
             </template>
 
             <app-empty
@@ -397,6 +298,11 @@ import { GridComponent, TooltipComponent, LegendComponent, MarkPointComponent, M
 import { CanvasRenderer } from 'echarts/renderers'
 
 import predictApi from '@/api/predict'
+import { intervalOption, modelOption, whatIfOption } from './charts/options.mjs'
+import { parseBatch as parseBatchText } from './batch/parseBatch.mjs'
+import IntervalPanel from './panels/IntervalPanel'
+import ConformalPanel from './panels/ConformalPanel'
+import WhatIfPanel from './panels/WhatIfPanel'
 import evaluationApi from '@/api/evaluation'
 import AppEmpty from '@/components/AppEmpty'
 import { createChart, setChartOption } from '@/utils/chart'
@@ -407,7 +313,7 @@ echarts.use([BarChart, ScatterChart, LineChart, GridComponent, TooltipComponent,
 
 export default {
   name: 'PredictIndex',
-  components: { AppEmpty },
+  components: { AppEmpty, IntervalPanel, ConformalPanel, WhatIfPanel },
   data () {
     return {
       loading: false,
@@ -480,102 +386,11 @@ export default {
       Object.values(this.charts).forEach(c => c && c.resize())
     },
     /** 预测区间图：P10→P90 浮动条 + P50 标记 */
-    renderIntervalChart () {
-      const el = this.$refs.intervalChart
-      if (!el || !this.interval) return
-      if (!this.charts.interval) this.charts.interval = createChart(echarts, el)
-      const iv = this.interval.interval
-      const lower = Math.max(iv.p10, 0)
-      const span = Math.max(iv.p90 - lower, 1)
-      setChartOption(this.charts.interval, {
-        grid: { left: 10, right: 30, top: 26, bottom: 8, containLabel: true },
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: { type: 'shadow' },
-          formatter: () => `P10（保守）：${this.formatNum(iv.p10)}<br/>P50（中性）：${this.formatNum(iv.p50)}<br/>P90（乐观）：${this.formatNum(iv.p90)}`
-        },
-        xAxis: {
-          type: 'value',
-          splitLine: { lineStyle: { color: '#f1f3f8' } },
-          axisLabel: { color: '#94a3b8', formatter: v => this.fmtInt(v) }
-        },
-        yAxis: {
-          type: 'category',
-          data: ['预测区间'],
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { color: '#475569', fontSize: 12 }
-        },
-        series: [
-          { name: '下限占位', type: 'bar', stack: 'range', data: [lower], itemStyle: { color: 'transparent' }, silent: true, barWidth: 26 },
-          {
-            name: '区间',
-            type: 'bar',
-            stack: 'range',
-            data: [span],
-            barWidth: 26,
-            itemStyle: {
-              borderRadius: 8,
-              color: {
-                type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
-                colorStops: [{ offset: 0, color: '#c7cbf7' }, { offset: 1, color: '#8b5cf6' }]
-              }
-            },
-            label: {
-              show: true,
-              position: 'inside',
-              color: '#fff',
-              fontWeight: 600,
-              formatter: () => `P10 ${this.fmtInt(iv.p10)}`
-            },
-            markLine: {
-              silent: true,
-              symbol: 'none',
-              lineStyle: { color: '#1e293b', width: 2, type: 'solid' },
-              label: { formatter: () => `P50 ${this.fmtInt(iv.p50)}`, position: 'end', color: '#1e293b', fontWeight: 600, fontSize: 11 },
-              data: [{ xAxis: iv.p50 }]
-            }
-          }
-        ]
-      }, true)
-      this.charts.interval.resize()
-    },
     renderModelChart () {
       const el = this.$refs.modelChart
       if (!el || !this.metrics.length) return
       if (!this.charts.model) this.charts.model = createChart(echarts, el)
-      const nameMap = { lgbm: 'LightGBM', xgb: 'XGBoost', rf: '随机森林', lr: '线性回归', knn: 'K 近邻', dt: '决策树', svm: 'SVR' }
-      const list = this.metrics.filter(m => m.trained)
-      setChartOption(this.charts.model, {
-        grid: { left: 6, right: 16, top: 20, bottom: 6, containLabel: true },
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: { type: 'shadow' },
-          formatter: p => `${p[0].name}<br/>R²(log) = ${Number(p[0].value).toFixed(4)}`
-        },
-        xAxis: {
-          type: 'category',
-          data: list.map(m => nameMap[m.model] || m.model),
-          axisLine: { lineStyle: { color: '#e6e9f0' } },
-          axisTick: { show: false },
-          axisLabel: { color: '#64748b', fontSize: 11, interval: 0 }
-        },
-        yAxis: { type: 'value', max: 1, splitLine: { lineStyle: { color: '#f1f3f8' } }, axisLabel: { color: '#94a3b8' } },
-        series: [{
-          type: 'bar',
-          data: list.map(m => ({
-            value: m.r2,
-            itemStyle: {
-              borderRadius: [7, 7, 0, 0],
-              color: m.model === 'lgbm'
-                ? { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#a855f7' }, { offset: 1, color: '#6366f1' }] }
-                : '#c7cbf7'
-            }
-          })),
-          barWidth: '42%',
-          label: { show: true, position: 'top', color: '#64748b', fontSize: 11, formatter: p => Number(p.value).toFixed(3) }
-        }]
-      }, true)
+      setChartOption(this.charts.model, modelOption(this.metrics), true)
       this.charts.model.resize()
     },
     /* ---------------- 预测 ---------------- */
@@ -606,8 +421,7 @@ export default {
       }).then(re => {
         this.interval = re.response || null
         this.intervalLoading = false
-        this.$nextTick(this.renderIntervalChart)
-      }).catch(() => { this.intervalLoading = false })
+          }).catch(() => { this.intervalLoading = false })
     },
     /**
      * 90% 保形预测区间：走独立接口（拟合集 + 校准集两段式训练，约 3 秒），
@@ -629,6 +443,10 @@ export default {
      * 交互式 what-if：让用户在预测页直接探索「改哪个参数能提多少」。
      * 后端在同一个已训练模型上扫描该维度的全部候选取值，一次返回完整序列。
      */
+    onWhatIfDimensionChange (val) {
+      this.whatifDimension = val
+      this.loadWhatIf()
+    },
     loadWhatIf () {
       this.whatifLoading = true
       predictApi.whatIf({
@@ -643,74 +461,8 @@ export default {
         this.whatif = re.response || null
         this.whatifLoading = false
         if (this.whatif) {
-          this.$nextTick(this.renderWhatIfChart)
-        }
+          }
       }).catch(() => { this.whatifLoading = false })
-    },
-    renderWhatIfChart () {
-      const el = this.$refs.whatifChart
-      if (!el || !this.whatif) return
-      if (!this.charts.whatif) this.charts.whatif = createChart(echarts, el)
-      const items = this.whatif.candidates || []
-      const labels = items.map(c => c.label)
-      const values = items.map(c => Math.round(c.prediction))
-      const currentLabel = this.whatif.current_label
-      const curIdx = labels.indexOf(currentLabel)
-      setChartOption(this.charts.whatif, {
-        grid: { left: 58, right: 24, top: 28, bottom: 34 },
-        tooltip: {
-          trigger: 'axis',
-          formatter: params => {
-            const p = params[0]
-            const c = items[p.dataIndex]
-            const sign = c.gain_pct >= 0 ? '+' : ''
-            return `${c.label}<br/>预测热度：${Number(c.prediction).toLocaleString()}<br/>`
-              + `等级：${c.grade}<br/>相对当前：${sign}${(c.gain_pct * 100).toFixed(1)}%`
-          }
-        },
-        xAxis: {
-          type: 'category',
-          data: labels,
-          axisLabel: { color: '#94a3b8', fontSize: 11, interval: labels.length > 12 ? 1 : 0 },
-          axisLine: { lineStyle: { color: 'rgba(148,163,184,0.25)' } }
-        },
-        yAxis: {
-          type: 'value',
-          name: '热度',
-          nameTextStyle: { color: '#94a3b8', fontSize: 11 },
-          axisLabel: { color: '#94a3b8', fontSize: 11 },
-          splitLine: { lineStyle: { color: 'rgba(148,163,184,0.15)' } }
-        },
-        series: [{
-          type: 'line',
-          smooth: true,
-          data: values,
-          symbolSize: 6,
-          lineStyle: { width: 2, color: '#6366f1' },
-          itemStyle: { color: '#6366f1' },
-          areaStyle: {
-            color: {
-              type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(99,102,241,0.28)' },
-                { offset: 1, color: 'rgba(99,102,241,0.02)' }
-              ]
-            }
-          },
-          markPoint: {
-            symbolSize: 44,
-            label: { color: '#fff', fontSize: 10, formatter: '最优' },
-            itemStyle: { color: '#f59e0b' },
-            data: [{ type: 'max', name: '最优' }]
-          },
-          markLine: {
-            symbol: 'none',
-            lineStyle: { color: '#10b981', type: 'dashed', width: 1.5 },
-            label: { color: '#10b981', fontSize: 10, formatter: '当前 ' + (currentLabel || '') },
-            data: [{ xAxis: curIdx >= 0 ? curIdx : 0 }]
-          }
-        }]
-      }, true)
     },
     fillBatchExample () {
       this.batch.text = [
@@ -721,44 +473,9 @@ export default {
       ].join('\n')
     },
     parseBatch () {
-      const lines = (this.batch.text || '').split(/\r?\n/).map(l => l.trim()).filter(l => l)
-      if (!lines.length) {
-        this.batchError = '请至少输入一行数据'
-        return null
-      }
-      const items = []
-      for (let i = 0; i < lines.length; i++) {
-        const p = lines[i].split(/[,，]/).map(s => s.trim())
-        if (p.length < 5) {
-          this.batchError = `第 ${i + 1} 行格式不对，应为：类别,粉丝数,小时,星期,月份`
-          return null
-        }
-        const fans = Number(p[1])
-        const hour = Number(p[2])
-        const weekday = Number(p[3])
-        const month = Number(p[4])
-        if ([fans, hour, weekday, month].some(v => Number.isNaN(v))) {
-          this.batchError = `第 ${i + 1} 行含非数字字段`
-          return null
-        }
-        if (hour < 0 || hour > 23 || weekday < 0 || weekday > 6 || month < 1 || month > 12) {
-          this.batchError = `第 ${i + 1} 行取值超出范围（小时 0-23，星期 0-6，月份 1-12）`
-          return null
-        }
-        items.push({
-          videoCategory: p[0],
-          authorFans: fans,
-          publishHour: hour,
-          publishWeekday: weekday,
-          publishMonth: month
-        })
-      }
-      if (items.length > 500) {
-        this.batchError = '一次最多 500 条'
-        return null
-      }
-      this.batchError = ''
-      return items
+      const { items, error } = parseBatchText(this.batch.text)
+      this.batchError = error
+      return error ? null : items
     },
     doBatch () {
       const items = this.parseBatch()
@@ -993,50 +710,8 @@ export default {
   }
 }
 
-.interval-block {
-  .interval-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
 
-    .section-title { margin-bottom: 0; }
-  }
-  .coverage-tip {
-    font-size: 12px;
-    color: #10b981;
-    font-weight: 600;
-  }
-}
 
-.interval-chart {
-  width: 100%;
-  height: 130px;
-}
-
-.interval-legend {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 12.5px;
-  color: #475569;
-  padding-top: 4px;
-
-  .dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-
-    &.p10 { background: #c7cbf7; }
-    &.p50 { background: #1e293b; }
-    &.p90 { background: #8b5cf6; }
-  }
-  .muted { color: #94a3b8; }
-}
 
 .empty-hint {
   font-size: 12.5px;
@@ -1103,138 +778,16 @@ export default {
 }
 
 /* ============ 保形区间区块 ============ */
-.conformal-block {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid #e6e2fb;
-  border-radius: 10px;
-  background: linear-gradient(160deg, #fafaff 0%, #ffffff 100%);
-}
 
-.cf-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 8px;
-}
 
-.cf-item {
-  flex: 1 1 120px;
-  border: 1px solid #eceafc;
-  border-radius: 8px;
-  background: #fff;
-  padding: 8px 10px;
 
-  span {
-    display: block;
-    font-size: 11.5px;
-    color: #94a3b8;
-    margin-bottom: 2px;
-  }
 
-  b {
-    font-size: 15px;
-    color: #1e293b;
-  }
-
-  .cf-mid {
-    color: #4f46e5;
-  }
-}
-
-.cf-note {
-  font-size: 12px;
-  line-height: 1.8;
-  color: #64748b;
-}
-
-.interval-warn {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.75;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  padding: 8px 10px;
-}
 
 /* ============ 交互式 what-if ============ */
-.whatif-block {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border: 1px solid #e6e2fb;
-  border-radius: 10px;
-  background: linear-gradient(160deg, #fafaff 0%, #ffffff 100%);
-}
 
-.whatif-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 
-.whatif-body {
-  margin-top: 10px;
-}
 
-.whatif-chart {
-  width: 100%;
-  height: 260px;
-}
 
-.whatif-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
-}
 
-.wi-item {
-  flex: 1 1 130px;
-  border: 1px solid #eceafc;
-  border-radius: 8px;
-  background: #fff;
-  padding: 8px 10px;
 
-  span {
-    display: block;
-    font-size: 11.5px;
-    color: #94a3b8;
-    margin-bottom: 2px;
-  }
-
-  b {
-    font-size: 15px;
-    color: #1e293b;
-  }
-
-  em {
-    display: block;
-    font-style: normal;
-    font-size: 11.5px;
-    color: #94a3b8;
-    margin-top: 2px;
-  }
-
-  &.best {
-    border-color: #fde68a;
-    background: #fffbeb;
-
-    b {
-      color: #b45309;
-    }
-  }
-
-  b.up {
-    color: #10b981;
-  }
-}
-
-.whatif-note {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.8;
-  color: #64748b;
-}
 </style>
