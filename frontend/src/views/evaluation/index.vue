@@ -204,6 +204,12 @@
     </el-card>
 
     <!-- ============ 结果 ============ -->
+    <job-progress
+      v-if="running"
+      :percent="progressPercent"
+      status="RUNNING"
+      label="实验运行中，正在调用 Python 算法引擎"
+      :elapsed="elapsedSeconds" />
     <div v-loading="running"
          :element-loading-text="'实验运行中（已 ' + elapsedSeconds + ' 秒），正在调用 Python 算法引擎…'"
          class="result-wrap">
@@ -337,6 +343,7 @@
 import evaluationApi from '@/api/evaluation'
 import AppSkeleton from '@/components/AppSkeleton'
 import AppEmpty from '@/components/AppEmpty'
+import JobProgress from '@/components/JobProgress'
 import { buildSummary } from './renderers/buildSummary'
 import { buildNotes } from './renderers/buildNotes'
 import { buildTables } from './renderers/buildTables'
@@ -365,7 +372,7 @@ const DEMO_STEPS = [
 
 export default {
   name: 'EvaluationIndex',
-  components: { AppSkeleton, AppEmpty },
+  components: { AppSkeleton, AppEmpty, JobProgress },
   data () {
     return {
       modes: [],
@@ -407,6 +414,11 @@ export default {
     }
   },
   computed: {
+    /** 分钟级实验没有真实进度，用已耗时做平滑估算，封顶 95% 留出收尾空间 */
+    progressPercent () {
+      if (!this.running) return 100
+      return Math.min(95, 8 + (Number(this.elapsedSeconds) || 0) * 3)
+    },
     currentMeta () {
       return this.modes.find(m => m.mode === this.current) || {}
     },

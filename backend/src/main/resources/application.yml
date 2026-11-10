@@ -1,5 +1,10 @@
 server:
   port: 8000
+  servlet:
+    session:
+      cookie:
+        # 降低跨站携带会话 Cookie 的风险；前后端同源部署时保持 lax 即可
+        same-site: lax
   undertow:
     io-threads: 16
     worker-threads: 40
@@ -51,12 +56,16 @@ mybatis-plus:
 
 
 system:
+  # 跨域白名单：生产环境必须通过环境变量 CORS_ALLOWED_ORIGINS 显式配置，禁止使用 "*"
+  cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8002,http://127.0.0.1:8002}
+  # 仅放行登录/登出、健康检查与接口文档；业务接口默认要求登录
   security-ignore-urls:
-    - /api/wx/**
-    - /api/admin/upload/configAndUpload
-    - /api/admin/upload/auth
-    - /api/student/user/register
-    - /api/admin/video/**
+    - /api/user/login
+    - /api/user/logout
+    - /actuator/health
+    - /actuator/info
+    # 报告分享链接：token 即凭证，免登录只读访问
+    - /api/report/shared/**
     # 接口文档（Swagger UI 与 OpenAPI JSON）
     - /v3/api-docs/**
     - /swagger-ui/**
@@ -88,6 +97,14 @@ pagehelper:
 
 #mybatis datasource default HikariPool
 spring:
+  # Flyway 数据库版本管理：启动时自动应用 db/migration 下未执行的脚本（幂等）。
+  # baseline-on-migrate：对已有数据的库以 V1 为基线，跳过 V1、只补跑 V2+ 增量。
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    table: flyway_schema_history
   # 在线接口文档：Swagger UI（/swagger-ui.html）与 OpenAPI JSON（/v3/api-docs）
   springdoc:
     api-docs:

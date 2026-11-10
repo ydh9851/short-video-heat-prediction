@@ -4,17 +4,23 @@
       <div class="page-head-main">
         <div class="page-title">数据探索分析</div>
         <div class="page-desc">
-          Python EDA 生成的统计图表，覆盖热度分布、类别特征、作者特征、时间特征与相关性五个维度；
-          重跑算法脚本后刷新即可看到最新结果。
+          上方为可筛选联动的交互洞察，下方保留 Python EDA 生成的静态图表，
+          覆盖热度分布、类别特征、作者特征、时间特征与相关性五个维度。
         </div>
       </div>
       <div class="page-head-actions">
-        <el-tag type="info" effect="plain">{{ images.length }} 张图表</el-tag>
+        <el-tag type="info" effect="plain">{{ images.length }} 张静态图表</el-tag>
       </div>
     </div>
 
-    <!-- 分组筛选 -->
-    <div class="filter-bar">
+    <el-tabs v-model="tab" class="eda-tabs">
+      <el-tab-pane label="交互洞察" name="interactive">
+        <eda-interactive />
+      </el-tab-pane>
+
+      <el-tab-pane :label="`静态图组（${images.length}）`" name="static">
+        <!-- 分组筛选 -->
+        <div class="filter-bar">
       <div
         v-for="g in groupTabs"
         :key="g.key"
@@ -58,16 +64,20 @@
     </el-row>
 
     <app-empty v-if="!filteredImages.length" title="该分组暂无可视化图表" description="切换到其他分组看看" />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <script>
 import AppEmpty from '@/components/AppEmpty'
+import EdaInteractive from './components/EdaInteractive'
 export default {
   name: 'EdaAnalysis',
-  components: { AppEmpty },
+  components: { AppEmpty, EdaInteractive },
   data () {
     return {
+      tab: 'interactive',
       group: 'all',
       // 每张图：脚本生成的 PNG 文件名 + 所属分组 + 中文标题/说明。
       // 由 algorithm/FeatureEDA/eda.py 生成，新增图时在此追加即可。

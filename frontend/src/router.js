@@ -43,7 +43,7 @@ const constantRoutes = [
         path: 'index',
         component: () => import('@/views/screen/index'),
         name: 'ScreenPage',
-        meta: { title: '数据大屏', icon: 'chart', group: '项目概览', noCache: true }
+        meta: { title: '数据大屏', icon: 'chart', group: '项目概览', noCache: true, standalone: true }
       }
     ]
   },
@@ -158,6 +158,40 @@ const constantRoutes = [
         component: () => import('@/views/comparison/index'),
         name: 'PlatformComparison',
         meta: { title: '平台对比', icon: 'peoples', group: '数据与特征', noCache: true }
+      },
+      {
+        path: 'lineage',
+        component: () => import('@/views/data/lineage'),
+        name: 'DataLineage',
+        meta: { title: '数据血缘', icon: 'tree', group: '数据与特征', noCache: true }
+      }
+    ]
+  },
+  {
+    path: '/case',
+    redirect: '/case/index',
+    component: Layout,
+    name: 'CasePage',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/case/index'),
+        name: 'CaseLibrary',
+        meta: { title: '场景库', icon: 'tab', group: '模型与归因', noCache: true }
+      }
+    ]
+  },
+  {
+    path: '/report',
+    redirect: '/report/index',
+    component: Layout,
+    name: 'ReportPage',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/report/index'),
+        name: 'ReportCenter',
+        meta: { title: '报告中心', icon: 'pdf', group: '模型与归因', noCache: true }
       }
     ]
   },
@@ -240,6 +274,32 @@ const constantRoutes = [
         component: () => import('@/views/model/index'),
         name: 'ModelIndex',
         meta: { title: '模型治理', icon: 'lock', group: '模型与归因', noCache: true }
+      }
+    ]
+  },
+  {
+    path: '/system',
+    redirect: '/system/operation-log',
+    component: Layout,
+    name: 'SystemPage',
+    children: [
+      {
+        path: 'operation-log',
+        component: () => import('@/views/system/operation-log'),
+        name: 'OperationLogPage',
+        meta: { title: '操作审计', icon: 'documentation', group: '系统管理', noCache: true }
+      },
+      {
+        path: 'job',
+        component: () => import('@/views/system/job'),
+        name: 'JobCenterPage',
+        meta: { title: '任务中心', icon: 'task', group: '系统管理', noCache: true }
+      },
+      {
+        path: 'status',
+        component: () => import('@/views/system/status'),
+        name: 'SystemStatusPage',
+        meta: { title: '系统状态', icon: 'dashboard', group: '系统管理', noCache: true }
       }
     ]
   },

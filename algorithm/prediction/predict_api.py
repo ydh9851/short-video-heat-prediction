@@ -33,11 +33,14 @@ predict_api.py —— 短视频热度预测命令行封装
 """
 
 import argparse
+import contextlib
 import json
 import os
+import shutil
 import sys
 import traceback
 import warnings
+from datetime import datetime
 from urllib.parse import unquote_plus
 
 warnings.filterwarnings("ignore")
@@ -51,6 +54,10 @@ PROCESSED_DIR = os.path.join(SYSTEM_ROOT, "data", "processed")
 TRAIN_CSV = os.path.join(PROCESSED_DIR, "train_clean.csv")
 TEST_CSV = os.path.join(PROCESSED_DIR, "test_clean.csv")
 CACHE_DIR = os.path.join(BASE, "model_cache")
+# 模型治理：注册表与不可变版本归档目录
+MODELS_DIR = os.path.join(SYSTEM_ROOT, "data", "models")
+VERSIONS_DIR = os.path.join(MODELS_DIR, "versions")
+REGISTRY_FILE = os.path.join(MODELS_DIR, "model_registry.json")
 
 CAT_FEATURES = ["video_category", "hour_bucket"]
 NUM_FEATURES = ["author_fans_log", "publish_hour", "publish_weekday", "publish_month", "is_weekend"]
@@ -62,7 +69,9 @@ MODELS = ["lr", "knn", "svm", "dt", "rf", "lgbm", "xgb"]
 
 # 特征体系版本号：特征列、类别编码规则、目标变换或训练数据口径发生任何变化都必须 +1。
 # 加载缓存时校验该版本，不一致则作废重训，避免旧 joblib 静默给出错误预测。
-FEATURE_VERSION = 2
+# v4：未知类别映射到预留码 N（len(m)），不再与众数（0）共用编码——
+#     此前「从未见过的类别」会被当成最强类别信号，语义错误（P1-6）。
+FEATURE_VERSION = 4
 
 
 def _current_data_version():
@@ -131,15 +140,22 @@ def _load_frames(platform=None):
 
 
 def _fit_cat_maps(train):
-    """基于训练集为每个类别特征建立 {取值: 编码} 映射（未见取值回退到众数）+ 众数类别。"""
+    """基于训练集为每个类别特征建立 {取值: 编码} 映射：众数固定编码 0，其余顺序编码 1..N-1。
+
+    编码规则（v4）：
+    - 众数（最强类别信号）→ 0
+    - 其余已见类别 → 1..N-1
+    - 未知类别 → N（预留码，= len(m)），与众数/已知类别均不共用编码。
+      此前未知类别回退众数（0），会把「从未见过的类别」当成最强类别处理，语义错误。
+    """
     maps, modes = {}, {}
     for col in CAT_FEATURES:
         vals = train[col].astype(str)
         mode_val = vals.mode()[0]
-        uniq = list(dict.fromkeys(vals.tolist()))
-        if mode_val in uniq:
-            uniq.remove(mode_val)
-        maps[col] = {v: i for i, v in enumerate(uniq)}
+        uniq = [v for v in dict.fromkeys(vals.tolist()) if v != mode_val]
+        m = {mode_val: 0}
+        m.update({v: i + 1 for i, v in enumerate(uniq)})
+        maps[col] = m
         modes[col] = mode_val
     return maps, modes
 
@@ -147,8 +163,9 @@ def _fit_cat_maps(train):
 def _encode_frame(df, maps, modes):
     out = df.copy()
     for col in CAT_FEATURES:
-        m, mode_val = maps[col], modes[col]
-        out[col] = out[col].astype(str).map(lambda v: m.get(v, len(m)))  # 未知 -> 新编码
+        m = maps[col]
+        unknown_code = len(m)  # 预留码 N：未知类别专属，与众数(0)及已知类别(1..N-1)区分开
+        out[col] = out[col].astype(str).map(lambda v: m.get(v, unknown_code))
     out["author_fans_log"] = pd.to_numeric(out["author_fans_log"], errors="coerce").fillna(0.0)
     for col in ["publish_hour", "publish_weekday", "publish_month", "is_weekend"]:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(-1)
@@ -242,34 +259,198 @@ def cache_path(name, platform=None):
     return os.path.join(CACHE_DIR, "predict_%s_%s.joblib" % (name, platform))
 
 
+def _read_registry():
+    try:
+        with open(REGISTRY_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _version_entry(name, version):
+    entry = (_read_registry().get("models") or {}).get(name) or {}
+    for item in entry.get("versions") or []:
+        if str(item.get("version")) == str(version):
+            return item
+    return {}
+
+
+def version_artifact(name, version):
+    """返回版本归档文件路径；注册表里有 artifact 字段时以其为准。"""
+    entry = _version_entry(name, version)
+    rel = str(entry.get("artifact") or "").strip()
+    if rel:
+        return os.path.join(MODELS_DIR, *rel.split("/"))
+    return os.path.join(VERSIONS_DIR, name, "%s.joblib" % version)
+
+
+def active_version(name):
+    """返回可真实加载的线上版本号。
+
+    同时要求：归档文件存在，且登记的特征版本与当前代码一致；
+    否则返回 None（回退当前缓存 / 触发重训），避免把旧特征体系的权重当线上模型。
+    """
+    entry = (_read_registry().get("models") or {}).get(name) or {}
+    active = entry.get("active")
+    if not active:
+        return None
+    item = next((v for v in entry.get("versions") or []
+                 if str(v.get("version")) == str(active)), {})
+    fv = item.get("featureVersion")
+    if fv is not None and int(fv) != FEATURE_VERSION:
+        return None
+    return str(active) if os.path.isfile(version_artifact(name, active)) else None
+
+
+def _write_registry(reg):
+    """原子写注册表：先写临时文件再替换，避免并发读到半截 JSON。"""
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    tmp = REGISTRY_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(reg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, REGISTRY_FILE)
+
+
+def _register_version(name, version, bundle, path):
+    """训练完成后立即把新版本登记为线上版本。
+
+    否则会出现"缓存已重训、注册表还指着旧版本"的窗口期，治理页展示的线上版本与实际推理不符。
+    """
+    reg = _read_registry()
+    models = reg.setdefault("models", {})
+    entry = models.setdefault(name, {"versions": []})
+    versions = entry.setdefault("versions", [])
+    metrics = bundle.get("metrics") or {}
+    item = {
+        "version": version,
+        "stage": "production",
+        "featureVersion": bundle.get("feature_version", FEATURE_VERSION),
+        "dataVersion": bundle.get("data_version") or _current_data_version(),
+        "r2": metrics.get("r2"),
+        "mae": metrics.get("mae"),
+        "rmse": metrics.get("rmse"),
+        "sizeMB": round(os.path.getsize(path) / 1024.0 / 1024.0, 2),
+        "trainedAt": bundle.get("trained_at")
+        or datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S"),
+        "artifact": "versions/%s/%s.joblib" % (name, version),
+    }
+    existing = next((v for v in versions if str(v.get("version")) == version), None)
+    if existing is None:
+        versions.append(item)
+    else:
+        existing.update(item)
+    versions.sort(key=lambda v: v.get("trainedAt") or "")
+    for v in versions:
+        v["stage"] = "production" if str(v.get("version")) == version else "archived"
+    entry["active"] = version
+    reg["featureVersion"] = FEATURE_VERSION
+    reg["updatedAt"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _write_registry(reg)
+
+
+def _archive_bundle(name, version, source):
+    dest = os.path.join(VERSIONS_DIR, name, "%s.joblib" % version)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    tmp = dest + ".tmp"
+    shutil.copy2(source, tmp)
+    os.replace(tmp, dest)
+    return dest
+
+
+@contextlib.contextmanager
+def _file_lock(lock_path):
+    """跨进程互斥锁：防止 CLI 与常驻引擎 / 多个 HTTP 请求同时训练并写坏同一个 joblib。
+
+    Windows 用 msvcrt.locking，Linux/macOS 用 fcntl.flock；不引入额外依赖。
+    """
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    f = open(lock_path, "a+b")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            # LK_LOCK 会阻塞到拿到锁
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(f, fcntl.LOCK_UN)
+        finally:
+            f.close()
+
+
 def train_and_cache(name, platform=None):
     import joblib
     X_train, y_train, X_test, y_test, meta = _prepare(platform=platform)
     model = _fit(name, X_train, y_train)
     metrics_log, metrics_raw = calc_metrics(model, X_test, y_test)
     os.makedirs(CACHE_DIR, exist_ok=True)
+    now = datetime.now()
+    version = "v%s-%s" % (FEATURE_VERSION, now.strftime("%Y%m%d_%H%M%S_%f"))
     bundle = {
         "model": model, "metrics": metrics_log, "metrics_raw": metrics_raw,
         "feature_names": FEATURE_NAMES, "meta": meta,
         "feature_version": FEATURE_VERSION,
+        "model_version": version,
+        "trained_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         # 训练所用数据集的版本号：指标变化时可区分是模型改动还是数据替换
         "data_version": _current_data_version(),
     }
-    joblib.dump(bundle, cache_path(name, platform), compress=3)
-    return metrics_log, metrics_raw
+    path = cache_path(name, platform)
+    tmp = path + ".tmp"
+    joblib.dump(bundle, tmp, compress=3)
+    os.replace(tmp, path)
+    # 每次训练都沉淀一份不可变归档，供 promote/rollback 使用
+    artifact_name = name if (platform is None or platform == "douyin") else "%s_%s" % (name, platform)
+    _archive_bundle(artifact_name, version, path)
+    # 主平台训练完成后立即同步注册表，避免"缓存已换、线上版本未变"的窗口期
+    if platform is None or platform == "douyin":
+        _register_version(name, version, bundle, path)
+    return metrics_log, metrics_raw, version
 
 
 def bundle_compatible(bundle):
-    """缓存兼容性校验：特征版本 + 特征列顺序必须与当前代码一致，否则视为脏缓存。"""
+    """缓存兼容性校验：特征版本 + 特征列顺序 + 训练数据版本必须与当前一致，否则视为脏缓存。
+
+    数据版本仅在两侧都非空时才校验：数据集版本体系未启用时不误判旧缓存。
+    """
     if not isinstance(bundle, dict):
         return False
     if bundle.get("feature_version") != FEATURE_VERSION:
         return False
-    return list(bundle.get("feature_names") or []) == FEATURE_NAMES
+    if list(bundle.get("feature_names") or []) != FEATURE_NAMES:
+        return False
+    cached_dv = str(bundle.get("data_version") or "")
+    current_dv = str(_current_data_version() or "")
+    if cached_dv and current_dv and cached_dv != current_dv:
+        return False
+    return True
 
 
-def load_or_train(name, platform=None):
+def load_or_train(name, platform=None, version=None):
+    """加载模型：优先使用显式版本 / 线上版本归档，其次当前缓存，最后自动重训。"""
     import joblib
+    if platform is None or platform == "douyin":
+        if version is None:
+            version = active_version(name)
+        if version:
+            artifact = version_artifact(name, version)
+            if os.path.isfile(artifact):
+                bundle = joblib.load(artifact)
+                if bundle_compatible(bundle):
+                    bundle.setdefault("model_version", version)
+                    return bundle, False
+                # 特征版本不一致：无论显式指定还是自动解析，都回退当前缓存并触发重训，
+                # 避免升级特征体系后线上直接不可用（注册表由重训后的 _register_version 纠正）
     path = cache_path(name, platform)
     if os.path.exists(path):
         bundle = None
@@ -284,12 +465,21 @@ def load_or_train(name, platform=None):
             os.remove(path)
         except OSError:
             pass
-    train_and_cache(name, platform)
+    # 训练需跨进程互斥：两个请求同时进来只训练一次，另一个拿到锁后直接加载新缓存
+    with _file_lock(path + ".lock"):
+        if os.path.exists(path):
+            try:
+                bundle = joblib.load(path)
+                if bundle_compatible(bundle):
+                    return bundle, False
+            except Exception:
+                pass
+        train_and_cache(name, platform)
     return joblib.load(path), True
 
 
-def predict(name, category, fans, hour, weekday, month):
-    bundle, trained_now = load_or_train(name)
+def predict(name, category, fans, hour, weekday, month, version=None):
+    bundle, trained_now = load_or_train(name, version=version)
     model, meta = bundle["model"], bundle["meta"]
     row = pd.DataFrame([{
         "video_category": str(category),
@@ -302,7 +492,7 @@ def predict(name, category, fans, hour, weekday, month):
     }])
     X = _encode_frame(row, meta["cat_maps"], meta["cat_modes"])
     pred_log = float(model.predict(X)[0])
-    return pred_log, float(np.expm1(pred_log)), trained_now
+    return pred_log, float(np.expm1(pred_log)), trained_now, bundle
 
 
 # 与 grading 模块一致的热度分级阈值（K-Means k=3）
@@ -318,12 +508,12 @@ def grade_of(heat):
     return "高热度"
 
 
-def predict_batch(name, items):
+def predict_batch(name, items, version=None):
     """
     批量预测：一次加载模型，对多条视频先验特征做预测。
     items 为 dict 列表，每项字段：category / fans / hour / weekday / month。
     """
-    bundle, trained_now = load_or_train(name)
+    bundle, trained_now = load_or_train(name, version=version)
     model, meta = bundle["model"], bundle["meta"]
 
     rows = []
@@ -375,6 +565,8 @@ def main():
                             help="批量预测：输入 JSON 文件路径（数组，每项含 category/fans/hour/weekday/month）")
         parser.add_argument("--metrics", action="store_true",
                             help="输出各已缓存模型的评估指标（多模型对照）")
+        parser.add_argument("--version", default=None,
+                            help="指定模型版本（如 v3-20261107_120000_123456）；缺省使用注册表线上的可加载版本")
         args = parser.parse_args()
 
         # 中文类别参数在 Java(JDK17/中文Windows) 的 ProcessBuilder argv 中会被按 GBK 破坏，
@@ -410,27 +602,29 @@ def main():
         if args.batch:
             with open(args.batch, encoding="utf-8") as f:
                 items = json.load(f)
-            results, trained_now, bundle = predict_batch(model_name, items)
+            results, trained_now, bundle = predict_batch(model_name, items, version=args.version)
             print(json.dumps({
                 "mode": "batch", "model": model_name, "count": len(results),
                 "trained_now": trained_now, "results": results,
+                "model_version": bundle.get("model_version"),
                 "metrics": bundle["metrics"], "metrics_raw": bundle.get("metrics_raw"),
             }, ensure_ascii=False))
             sys.exit(0)
         if args.train:
-            met_log, met_raw = train_and_cache(model_name)
+            met_log, met_raw, version = train_and_cache(model_name)
             print(json.dumps({
                 "model": model_name, "trained": True,
+                "model_version": version,
                 "cache_file": cache_path(model_name),
                 "metrics": met_log, "metrics_raw": met_raw,
             }, ensure_ascii=False))
             sys.exit(0)
 
-        pred_log, pred, trained_now = predict(
-            model_name, category, args.fans, args.hour, args.weekday, args.month)
-        bundle = load_or_train(model_name)[0]
+        pred_log, pred, trained_now, bundle = predict(
+            model_name, category, args.fans, args.hour, args.weekday, args.month, version=args.version)
         print(json.dumps({
             "model": model_name,
+            "model_version": bundle.get("model_version"),
             "prediction": pred,
             "prediction_log": pred_log,
             "trained_now": trained_now,

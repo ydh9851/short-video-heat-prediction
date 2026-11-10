@@ -10,6 +10,7 @@ import 'virtual:svg-icons-register'
 import SvgIcon from '@/components/SvgIcon'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
+import Cookies from 'js-cookie'
 import { initDemoMode } from '@/utils/demo'
 
 const app = createApp(App)
@@ -38,6 +39,12 @@ router.beforeEach(async (to, from, next) => {
     document.title = to.meta.title
   } else {
     document.title = '\u200E'
+  }
+  // 未登录（无本地登录标记）时禁止直接访问业务页面；服务端仍会二次校验 Session
+  if (to.path !== '/login' && !Cookies.get('adminUserName')) {
+    NProgress.done()
+    next({ path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} })
+    return
   }
   store.commit('router/initRoutes')
   if (to.path && typeof window._hmt !== 'undefined') {

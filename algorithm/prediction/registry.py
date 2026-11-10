@@ -16,6 +16,7 @@ CLI：
 import argparse
 import json
 import os
+import shutil
 import sys
 import traceback
 from datetime import datetime
@@ -23,7 +24,9 @@ from datetime import datetime
 PRED_DIR = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_ROOT = os.path.dirname(os.path.dirname(PRED_DIR))
 CACHE_DIR = os.path.join(PRED_DIR, "model_cache")
-REGISTRY = os.path.join(SYSTEM_ROOT, "data", "models", "model_registry.json")
+MODELS_DIR = os.path.join(SYSTEM_ROOT, "data", "models")
+VERSIONS_DIR = os.path.join(MODELS_DIR, "versions")
+REGISTRY = os.path.join(MODELS_DIR, "model_registry.json")
 
 sys.path.insert(0, PRED_DIR)
 import predict_api as P  # noqa: E402
@@ -32,10 +35,33 @@ MODELS = ["lgbm", "xgb", "rf", "lr", "knn", "svm", "dt"]
 
 
 def _version_of(path, bundle):
-    """版本号 = 特征版本 + 文件时间戳：特征变了或模型重训了，版本号必然变化。"""
+    """版本号优先取训练时写入 bundle 的 model_version，旧缓存回退到文件时间戳。"""
+    if isinstance(bundle, dict) and bundle.get("model_version"):
+        return str(bundle["model_version"])
     fv = bundle.get("feature_version", P.FEATURE_VERSION) if isinstance(bundle, dict) else P.FEATURE_VERSION
     stamp = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y%m%d_%H%M%S")
     return "v%s-%s" % (fv, stamp)
+
+
+def artifact_relpath(name, version):
+    """版本归档文件相对 data/models 的路径（统一使用 / 便于跨平台与 JSON 展示）。"""
+    return "versions/%s/%s.joblib" % (name, version)
+
+
+def artifact_path(name, version):
+    return os.path.join(MODELS_DIR, *artifact_relpath(name, version).split("/"))
+
+
+def _archive_artifact(name, version, source):
+    """把当前缓存复制为不可变版本归档；已存在且大小一致则跳过。"""
+    dest = artifact_path(name, version)
+    if os.path.isfile(dest) and os.path.getsize(dest) == os.path.getsize(source):
+        return dest
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    tmp = dest + ".tmp"
+    shutil.copy2(source, tmp)
+    os.replace(tmp, dest)
+    return dest
 
 
 def _current_data_version():
@@ -85,6 +111,8 @@ def sync():
         if not isinstance(bundle, dict):
             continue
         version = _version_of(path, bundle)
+        # 将当前缓存归档为不可变版本文件，使 promote/rollback 真正能加载到对应权重
+        _archive_artifact(name, version, path)
         entry = reg["models"].setdefault(name, {"versions": []})
         known = {v["version"] for v in entry["versions"]}
         if version not in known:
@@ -100,19 +128,65 @@ def sync():
                 "rmse": metrics.get("rmse"),
                 "sizeMB": round(os.path.getsize(path) / 1024.0 / 1024.0, 2),
                 "trainedAt": datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S"),
+                "artifact": artifact_relpath(name, version),
             })
             entry["versions"].sort(key=lambda v: v["trainedAt"])
-        # 若该模型还没有 production 版本，把最早的设为 production，保证系统始终有线上模型
-        if not any(v["stage"] == "production" for v in entry["versions"]):
-            entry["versions"][0]["stage"] = "production"
-        entry["active"] = next((v["version"] for v in entry["versions"] if v["stage"] == "production"),
-                               entry["versions"][-1]["version"])
+        else:
+            # 历史版本补充归档字段，避免旧注册表无法定位权重
+            for v in entry["versions"]:
+                if v["version"] == version:
+                    v["artifact"] = artifact_relpath(name, version)
+                    break
 
+        # 迁移策略：若 active 指向的历史版本没有归档文件或特征体系已过期，说明它无法被真实加载。
+        # 此时把"当前缓存"登记为线上版本，保证注册表描述的就是系统实际服务所用的模型。
+        active = entry.get("active")
+        active_ok = (bool(active)
+                     and os.path.isfile(artifact_path(name, active))
+                     and _feature_version_of(entry, active) == P.FEATURE_VERSION)
+        current_compatible = bundle.get("feature_version", P.FEATURE_VERSION) == P.FEATURE_VERSION
+        if not active_ok:
+            if current_compatible:
+                entry["active"] = version
+                for v in entry["versions"]:
+                    v["stage"] = "production" if v["version"] == version else "archived"
+            else:
+                # 当前缓存也属于旧特征体系：不指向任何线上版本，等首次推理重训后自动登记
+                entry["active"] = None
+                for v in entry["versions"]:
+                    if v.get("stage") == "production":
+                        v["stage"] = "archived"
+        else:
+            if not any(v["stage"] == "production" for v in entry["versions"]):
+                for v in entry["versions"]:
+                    if v["version"] == active:
+                        v["stage"] = "production"
+                        break
+            entry["active"] = active
+
+    reg["featureVersion"] = P.FEATURE_VERSION
     reg["updatedAt"] = now
     os.makedirs(os.path.dirname(REGISTRY), exist_ok=True)
-    with open(REGISTRY, "w", encoding="utf-8") as f:
+    tmp = REGISTRY + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(reg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, REGISTRY)
     return reg
+
+
+def _feature_version_of(entry, version):
+    """版本登记的特征体系版本；未登记时按当前版本处理（兼容旧注册表）。"""
+    for v in entry.get("versions") or []:
+        if str(v.get("version")) == str(version):
+            fv = v.get("featureVersion")
+            return int(fv) if fv is not None else P.FEATURE_VERSION
+    return P.FEATURE_VERSION
+
+
+def _artifact_available(name, version, entry):
+    rel = entry.get("artifact")
+    path = os.path.join(MODELS_DIR, *rel.split("/")) if rel else artifact_path(name, version)
+    return os.path.isfile(path)
 
 
 def summary(reg):
@@ -125,6 +199,7 @@ def summary(reg):
             "model": name,
             "activeVersion": active,
             "versionCount": len(versions),
+            "activeArtifactAvailable": bool(active) and _artifact_available(name, active, cur),
             # 历史版本清单（新→旧），供前端做版本切换与回滚
             "versions": [
                 {
@@ -134,6 +209,8 @@ def summary(reg):
                     "trainedAt": v.get("trainedAt"),
                     # 训练所用数据集版本：指标变化时可区分是模型改动还是数据替换
                     "dataVersion": v.get("dataVersion"),
+                    # 归档文件是否存在；不存在的旧版本只能查看、不能上线或回滚
+                    "artifactAvailable": _artifact_available(name, v.get("version"), v),
                 }
                 for v in reversed(versions)
             ],

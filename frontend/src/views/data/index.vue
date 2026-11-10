@@ -16,6 +16,7 @@
             :label="p.displayName + (p.available ? '' : '（未导入）')"
             :value="p.platform" />
         </el-select>
+        <el-button plain @click="$router.push('/data/lineage')">数据血缘</el-button>
         <el-button
           v-if="platforms.length && !currentPlatformMeta.available"
           type="primary"
@@ -39,6 +40,13 @@
             · {{ Number(quality.stats.rows).toLocaleString() }} 行
           </template>
         </span>
+        <el-button
+          size="mini"
+          type="primary"
+          plain
+          class="strip-btn"
+          :loading="checkingQuality"
+          @click="runQuality">运行质检</el-button>
       </div>
       <div class="strip-chips">
         <el-tooltip
@@ -97,71 +105,6 @@
         </el-table-column>
         <el-table-column prop="sizeMB" label="体积(MB)" width="110" />
         <el-table-column prop="modifiedAt" label="更新时间" width="175" />
-      </el-table>
-    </el-card>
-
-    <!-- ============ 模型治理入口 ============ -->
-    <el-card shadow="never" class="raw-card">
-      <div class="list-toolbar">
-        <div class="section-title">模型治理</div>
-        <div class="raw-actions">
-          <el-tag v-if="shadow && shadow.count" size="small" type="info" effect="plain">
-            影子：{{ shadow.primaryModel || '线上' }} vs {{ shadow.shadowModel }} · 平均偏差 {{ shadow.meanAbsDiffPct }}%
-          </el-tag>
-          <el-button size="small" type="primary" plain @click="$router.push('/model/index')">
-            前往模型治理页
-          </el-button>
-        </div>
-      </div>
-      <el-table :data="models" size="small" v-loading="loadingModels">
-        <el-table-column prop="model" label="模型" width="90" />
-        <el-table-column prop="activeVersion" label="线上版本" min-width="190" />
-        <el-table-column label="阶段" width="110">
-          <template #default="{ row }">
-            <el-tag size="small" :type="row.stage === 'production' ? 'success' : 'warning'" effect="light">
-              {{ row.stage }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="R²(log)" width="110">
-          <template #default="{ row }">{{ row.r2 == null ? '-' : row.r2.toFixed(4) }}</template>
-        </el-table-column>
-        <el-table-column label="版本数" width="90" prop="versionCount" />
-        <el-table-column prop="trainedAt" label="训练时间" width="170" />
-      </el-table>
-    </el-card>
-
-    <!-- ============ 数据质量门禁 ============ -->
-    <el-card shadow="never" class="raw-card">
-      <div class="list-toolbar">
-        <div class="section-title">
-          数据质量门禁
-          <el-tag v-if="quality" size="small" :type="qualityTag(quality.status)" effect="dark" style="margin-left:8px">
-            {{ quality.status }}
-          </el-tag>
-        </div>
-        <div class="raw-actions">
-          <span v-if="quality" class="muted">通过 {{ quality.passed }} / {{ quality.summary.total }} 项</span>
-          <el-button size="small" type="primary" :loading="checkingQuality" @click="runQuality">运行质检</el-button>
-        </div>
-      </div>
-      <div class="muted raw-hint">
-        硬性检查（schema 完整性 / 关键字段缺失率 / 互动量非负 / 时间区间）失败即判 FAIL，应阻断该平台进入建模；
-        软性检查（主键重复率 / 类别覆盖 / 热度分布 PSI）仅提示，不阻断。
-      </div>
-      <el-table v-if="quality" :data="quality.checks" size="small">
-        <el-table-column prop="name" label="检查项" min-width="220" />
-        <el-table-column label="级别" width="86">
-          <template #default="{ row }">
-            <el-tag size="small" :type="row.level === 'HARD' ? 'info' : 'warning'" effect="plain">{{ row.level }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="结果" width="88">
-          <template #default="{ row }">
-            <el-tag size="small" :type="qualityTag(row.status)" effect="light">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="detail" label="明细" min-width="360" />
       </el-table>
     </el-card>
 
@@ -275,6 +218,11 @@
             <el-tag :type="gradeTag(row.grade)" size="small" effect="light">{{ row.grade }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="saveAsCase(row)">存为场景</el-button>
+          </template>
+        </el-table-column>
         <template #empty>
           <app-empty
                 compact
@@ -306,7 +254,9 @@ import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, Gr
 import { CanvasRenderer } from 'echarts/renderers'
 
 import dataApi from '@/api/data'
-import modelApi from '@/api/model'
+import jobApi from '@/api/job'
+
+import caseApi from '@/api/case'
 import AppEmpty from '@/components/AppEmpty'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, GraphicComponent, CanvasRenderer])
@@ -329,11 +279,6 @@ export default {
       // 数据质量门禁结果
       quality: null,
       checkingQuality: false,
-      // 模型注册表与影子对比
-      models: [],
-      loadingModels: false,
-      syncingModels: false,
-      shadow: null,
       platforms: [],
       platform: 'douyin',
       ov: {},
@@ -376,7 +321,6 @@ export default {
     this.loadPlatforms()
     this.loadRawFiles()
     this.runQuality()
-    this.loadModels()
   },
   mounted () {
     window.addEventListener('resize', this.resizeHandler)
@@ -424,22 +368,6 @@ export default {
       this.loadOverview()
       this.loadSamples()
       this.runQuality()
-    },
-    loadModels () {
-      this.loadingModels = true
-      modelApi.list().then(re => {
-        this.models = (re.response || {}).models || []
-        this.loadingModels = false
-      }).catch(() => { this.loadingModels = false })
-      modelApi.shadow(5).then(re => { this.shadow = re.response || null }).catch(() => {})
-    },
-    syncModels () {
-      this.syncingModels = true
-      modelApi.sync().then(() => {
-        this.syncingModels = false
-        this.$message.success('注册表已同步')
-        this.loadModels()
-      }).catch(() => { this.syncingModels = false })
     },
     qualityTag (status) {
       if (status === 'PASS') return 'success'
@@ -493,16 +421,38 @@ export default {
     },
     doImport () {
       this.importing = true
+      // 导入已接入任务中心：提交后立即返回 jobId，这里轮询任务状态直至完成
       dataApi.importDataset(this.platform).then(re => {
-        const d = re.response || {}
-        if (d.code === 1) {
-          this.$message.success(d.message || '导入成功')
-        } else {
-          this.$message.error(d.message || '导入失败')
+        const jobId = re.response
+        if (!jobId) {
+          this.importing = false
+          this.$message.error('任务提交失败')
+          return
         }
-        this.importing = false
-        this.refreshAll()
+        this.$message.info(`导入任务 #${jobId} 已提交，正在后台执行（可在任务中心查看）`)
+        this.pollImportJob(jobId)
       }).catch(() => { this.importing = false })
+    },
+    pollImportJob (jobId) {
+      const timer = setInterval(() => {
+        jobApi.get(jobId).then(re => {
+          const job = re.response || {}
+          if (job.status === 'DONE') {
+            clearInterval(timer)
+            this.importing = false
+            this.$message.success(`导入完成（任务 #${jobId}）`)
+            this.refreshAll()
+          } else if (job.status === 'FAILED') {
+            clearInterval(timer)
+            this.importing = false
+            this.$message.error(`导入失败：${job.errorMsg || '未知错误'}（任务 #${jobId}，可在任务中心重试）`)
+          }
+          // QUEUED / RUNNING 继续轮询
+        }).catch(() => {
+          clearInterval(timer)
+          this.importing = false
+        })
+      }, 5000)
     },
     loadOverview () {
       this.loadingOverview = true
@@ -525,6 +475,45 @@ export default {
     onFilter () {
       this.page = 1
       this.loadSamples()
+    },
+    /**
+     * 把一条真实样本的先验特征沉淀为「分析场景」：
+     * 从发布时间解析 hour/weekday/month，创建后可直接设为当前场景，
+     * 预测/归因页自动复用，实现「从数据样本创建场景 → 预测」的验收主线。
+     */
+    saveAsCase (row) {
+      const d = row.publishTime ? new Date(String(row.publishTime).replace(' ', 'T')) : new Date()
+      const payload = {
+        name: '',
+        description: `来自${(this.currentPlatformMeta.displayName || this.platform)}样本 ${row.videoId}`,
+        model: 'lgbm',
+        videoCategory: row.videoCategory,
+        authorFans: row.authorFans || 0,
+        publishHour: d.getHours(),
+        // JS getDay() 是 0=周日；算法侧统一 pandas weekday（0=周一），需要平移
+        publishWeekday: (d.getDay() + 6) % 7,
+        publishMonth: d.getMonth() + 1,
+        source: 'data-sample'
+      }
+      this.$prompt('为该样本场景命名', '存为场景', {
+        confirmButtonText: '保存',
+        cancelButtonText: '取消',
+        inputValue: `${row.videoCategory} · ${d.getHours()}时发布`,
+        inputValidator: v => (v && v.trim().length > 0) || '名称不能为空'
+      }).then(({ value }) => {
+        payload.name = value.trim()
+        caseApi.create(payload).then(re => {
+          const id = re.response
+          this.$confirm('场景已保存，是否设为当前场景？（预测/归因页将自动填充）', '保存成功', {
+            type: 'success',
+            confirmButtonText: '设为当前',
+            cancelButtonText: '稍后'
+          }).then(() => {
+            this.$store.dispatch('caseStudy/setCurrent', { id, ...payload })
+            this.$message.success('已设为当前场景')
+          }).catch(() => {})
+        })
+      }).catch(() => {})
     },
     resetFilter () {
       this.keyword = ''
@@ -863,6 +852,10 @@ export default {
   align-items: center;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.strip-btn {
+  margin-left: auto;
 }
 
 .strip-title {

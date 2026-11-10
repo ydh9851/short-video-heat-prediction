@@ -32,15 +32,15 @@
 
         <div class="brand-stats">
           <div class="brand-stat">
-            <b>36,381</b>
+            <b><count-to :end-val="stats.samples" :duration="1600" separator /></b>
             <span>数据样本</span>
           </div>
           <div class="brand-stat">
-            <b>6</b>
+            <b><count-to :end-val="stats.models" :duration="1600" /></b>
             <span>对比模型</span>
           </div>
           <div class="brand-stat">
-            <b>13</b>
+            <b><count-to :end-val="stats.edaGroups" :duration="1600" /></b>
             <span>EDA 图组</span>
           </div>
         </div>
@@ -122,10 +122,12 @@
 import { mapMutations } from 'vuex'
 import loginApi from '@/api/login'
 import BrandMark from '@/components/BrandMark'
+import CountTo from '@/components/CountTo'
+import { readCachedStats } from '@/utils/projectStats'
 
 export default {
   name: 'Login',
-  components: { BrandMark },
+  components: { BrandMark, CountTo },
   data () {
     const validateUsername = (rule, value, callback) => {
       if (!value || value.length < 5) {
@@ -142,6 +144,7 @@ export default {
       }
     }
     return {
+      stats: readCachedStats(),
       features: [
         { title: '多模型热度预测', desc: 'LightGBM / XGBoost / 随机森林等 6 模型横向对比' },
         { title: 'SHAP 归因解释', desc: '定位每条视频火与不火的关键特征' },
@@ -188,13 +191,17 @@ export default {
         loginApi.login(this.loginForm).then(result => {
           if (result && result.code === 1) {
             this.setUserName(this.loginForm.userName)
-            this.$router.push({ path: '/' })
+            const redirect = this.$route.query.redirect
+            this.$router.push(typeof redirect === 'string' && redirect ? redirect : '/')
           } else {
             this.loading = false
             this.$message.error((result && result.message) || '登录失败，请检查账号密码')
           }
-        }).catch(() => {
+        }).catch(e => {
           this.loading = false
+          if (e && e.message) {
+            this.$message.error(e.message)
+          }
         })
       })
     },

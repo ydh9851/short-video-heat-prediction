@@ -6,11 +6,12 @@ import com.alvis.media.base.RestResponse;
 import com.alvis.media.domain.User;
 import com.alvis.media.service.HeatLogService;
 import com.alvis.media.service.PredictService;
-import com.alvis.media.utility.PythonEngineClient;
+import com.alvis.media.utility.PythonGateway;
 import com.alvis.media.viewmodel.predict.BatchPredictRequestVM;
 import com.alvis.media.viewmodel.predict.PredictRequestVM;
 import com.alvis.media.viewmodel.predict.PredictResultVM;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,14 +33,14 @@ public class PredictController extends BaseApiController {
 
     private final PredictService predictService;
     private final HeatLogService heatLogService;
-    private final PythonEngineClient engineClient;
+    private final PythonGateway pythonGateway;
 
     /**
      * 90% 保形预测区间：给定同样的输入，返回点预测与保形区间。
      * 区间在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α（实测覆盖率见实验中心）。
      */
     @PostMapping("/interval")
-    public RestResponse<JsonNode> interval(@RequestBody PredictRequestVM req) {
+    public RestResponse<JsonNode> interval(@RequestBody @Valid PredictRequestVM req) {
         return RestResponse.ok(predictService.interval(req));
     }
 
@@ -69,15 +71,15 @@ public class PredictController extends BaseApiController {
     @GetMapping("/engine")
     public RestResponse<Map<String, Object>> engine() {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("status", engineClient.status());
-        data.put("url", engineClient.baseUrl());
-        data.put("lastError", engineClient.lastError());
+        data.put("status", pythonGateway.engineStatus());
+        data.put("url", pythonGateway.engineBaseUrl());
+        data.put("lastError", pythonGateway.engineLastError());
         return RestResponse.ok(data);
     }
 
     /** 单条热度预测（并记录） */
     @PostMapping
-    public RestResponse<PredictResultVM> predict(@RequestBody PredictRequestVM req) {
+    public RestResponse<PredictResultVM> predict(@RequestBody @Valid PredictRequestVM req) {
         PredictResultVM vm = predictService.predict(req);
         heatLogService.save(req.getModel(), req.getVideoCategory(), req.getAuthorFans(),
                 req.getPublishHour(), req.getPublishWeekday(), req.getPublishMonth(),
@@ -85,7 +87,7 @@ public class PredictController extends BaseApiController {
         return RestResponse.ok(vm);
     }
 
-    /** 批量热度预测（含热度等级，逐条记录） */
+    /** 批量热度预测（含热度等级，批量写库） */
     @PostMapping("/batch")
     public RestResponse<JsonNode> predictBatch(@RequestBody BatchPredictRequestVM req) {
         JsonNode node = predictService.predictBatch(req);
@@ -93,14 +95,18 @@ public class PredictController extends BaseApiController {
         JsonNode results = node.path("results");
         if (items != null && results.isArray()) {
             Integer uid = currentUserId();
+            List<com.alvis.media.service.HeatLogService.Entry> entries = new ArrayList<>();
             for (int i = 0; i < results.size() && i < items.size(); i++) {
                 PredictRequestVM it = items.get(i);
                 JsonNode r = results.get(i);
-                heatLogService.save(req.getModel(), it.getVideoCategory(), it.getAuthorFans(),
+                entries.add(new com.alvis.media.service.HeatLogService.Entry(
+                        req.getModel(), it.getVideoCategory(), it.getAuthorFans(),
                         it.getPublishHour(), it.getPublishWeekday(), it.getPublishMonth(),
                         r.path("prediction").asDouble(), r.path("prediction_log").asDouble(),
-                        "batch", uid);
+                        "batch", uid));
             }
+            // 批量插入：500 条从 500 次 INSERT 降为 1 次 batchUpdate
+            heatLogService.saveBatch(entries);
         }
         return RestResponse.ok(node);
     }

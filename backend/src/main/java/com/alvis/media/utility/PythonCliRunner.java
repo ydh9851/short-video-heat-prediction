@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -21,6 +22,12 @@ public class PythonCliRunner {
 
     /** 默认超时：SHAP 全局归因等首次调用需要训练模型，给足时间但避免无限挂起。 */
     private static final int DEFAULT_TIMEOUT_SECONDS = 600;
+
+    /**
+     * 全局并发上限：每个 Python 进程首次启动需加载 lightgbm/pandas/numpy 并可能训练，
+     * 单进程内存可达数百 MB。不设上限时并发实验会线性放大进程数，直接打满容器内存。
+     */
+    private static final Semaphore PROCESS_SEMAPHORE = new Semaphore(4);
 
     @Value("${system.python.path:python}")
     private String pythonPath;
@@ -62,57 +69,69 @@ public class PythonCliRunner {
         }
 
         Process p;
+        boolean acquired = false;
         try {
-            p = pb.start();
-        } catch (IOException e) {
-            throw new RuntimeException("启动 Python 进程失败: " + e.getMessage(), e);
-        }
-
-        // 读流必须与等待并行：若先读到 EOF 再 waitFor，进程卡住时 readLine 会永久阻塞，超时形同虚设
-        StringBuffer sb = new StringBuffer();
-        Thread reader = new Thread(() -> {
-            try (BufferedReader br = new BufferedReader(
-                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append('\n');
-                }
-            } catch (IOException ignored) {
-                // 进程被强制终止时流会中断，属预期情况
-            }
-        }, "py-cli-reader");
-        reader.setDaemon(true);
-        reader.start();
-
-        boolean finished;
-        try {
-            finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            p.destroyForcibly();
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Python 脚本执行被中断: " + scriptPath, e);
-        }
-        if (!finished) {
-            p.destroyForcibly();
+            // 先拿信号量再启动进程：超过并发上限的请求在此排队，而不是瞬间拉起一堆 Python 进程
+            PROCESS_SEMAPHORE.acquire();
+            acquired = true;
             try {
-                p.waitFor(5, TimeUnit.SECONDS);
+                p = pb.start();
+            } catch (IOException e) {
+                throw new RuntimeException("启动 Python 进程失败: " + e.getMessage(), e);
+            }
+            // 读流必须与等待并行：若先读到 EOF 再 waitFor，进程卡住时 readLine 会永久阻塞，超时形同虚设
+            StringBuffer sb = new StringBuffer();
+            Thread reader = new Thread(() -> {
+                try (BufferedReader br = new BufferedReader(
+                        new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line).append('\n');
+                    }
+                } catch (IOException ignored) {
+                    // 进程被强制终止时流会中断，属预期情况
+                }
+            }, "py-cli-reader");
+            reader.setDaemon(true);
+            reader.start();
+
+            boolean finished;
+            try {
+                finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                p.destroyForcibly();
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Python 脚本执行被中断: " + scriptPath, e);
+            }
+            if (!finished) {
+                p.destroyForcibly();
+                try {
+                    p.waitFor(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new RuntimeException("Python 脚本执行超时（" + timeoutSeconds + "s），已强制终止: "
+                        + scriptPath + (sb.length() > 0 ? "，超时前输出: " + sb : ""));
+            }
+            try {
+                // 进程已退出，流必然 EOF；给读线程一点时间收尾残余输出
+                reader.join(5000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            throw new RuntimeException("Python 脚本执行超时（" + timeoutSeconds + "s），已强制终止: "
-                    + scriptPath + (sb.length() > 0 ? "，超时前输出: " + sb : ""));
-        }
-        try {
-            // 进程已退出，流必然 EOF；给读线程一点时间收尾残余输出
-            reader.join(5000);
+            String out = sb.toString().trim();
+            if (p.exitValue() != 0) {
+                throw new RuntimeException("python exit " + p.exitValue() + ": " + out);
+            }
+            return out;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new RuntimeException("等待 Python 进程槽位被中断: " + scriptPath, e);
+        } finally {
+            if (acquired) {
+                PROCESS_SEMAPHORE.release();
+            }
         }
-        String out = sb.toString().trim();
-        if (p.exitValue() != 0) {
-            throw new RuntimeException("python exit " + p.exitValue() + ": " + out);
-        }
-        return out;
     }
 
     /** 取输出中最后一行非空文本（Python 输出可能混入告警行）。 */

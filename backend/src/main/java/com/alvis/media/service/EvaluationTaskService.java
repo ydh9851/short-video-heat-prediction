@@ -1,6 +1,7 @@
 package com.alvis.media.service;
 
 import com.alvis.media.configuration.spring.task.EvaluationTaskConfig;
+import com.alvis.media.exception.BusinessException;
 import com.alvis.media.utility.TraceContext;
 import com.alvis.media.viewmodel.evaluation.EvaluationRequestVM;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -78,7 +79,8 @@ public class EvaluationTaskService {
             executor.execute(() -> runTask(taskId, req, traceId));
         } catch (RejectedExecutionException e) {
             update(taskId, "status", "FAILED", "error", "实验队列已满，请稍后重试");
-            throw new IllegalStateException("实验队列已满，请稍后重试");
+            // 队列满不是系统故障，用 429 让前端提示“稍后重试”而不是 500
+            throw new BusinessException(429, "实验队列已满，请稍后重试");
         }
         return taskId;
     }

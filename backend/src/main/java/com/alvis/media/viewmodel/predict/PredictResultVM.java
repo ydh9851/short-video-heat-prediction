@@ -10,6 +10,7 @@ import java.util.Map;
 @Data
 public class PredictResultVM {
     private String model;                    // 使用的模型 lgbm|xgb|rf|lr|knn|svm|dt
+    private String modelVersion;             // 实际参与推理的模型版本（如 v3-20261108_120000_123456）
     private Double prediction;               // 预测热度（原始空间，加权互动量）
     private Double predictionLog;            // 预测热度（log1p 空间）
     private Boolean trainedNow;              // 本次调用是否新训练了模型

@@ -74,6 +74,10 @@
       </div>
 
       <!-- 输入 -->
+      <div v-if="currentCase" class="case-banner">
+        <span>已应用场景「{{ currentCase.name }}」的参数，可直接归因或微调</span>
+        <el-button link type="primary" size="small" @click="clearCase">清除</el-button>
+      </div>
       <div class="input-bar">
         <div class="field">
           <span class="field-label">视频类别</span>
@@ -109,6 +113,13 @@
 
       <!-- 单条归因结果 -->
       <template v-if="explain">
+        <explanation-report
+          :explain="explain"
+          :quality="quality"
+          :cf="cf"
+          :refutation="refutation"
+          :form="form" />
+
         <el-row :gutter="16" class="explain-row">
           <el-col :xs="24" :lg="13">
             <div class="fig-title">
@@ -149,6 +160,9 @@
               <el-button size="small" style="float:right" @click="exportReport">导出 CSV</el-button>
               <el-button size="small" type="primary" style="float:right;margin-right:8px"
                          :loading="reportLoading" @click="doReport">生成报告(HTML)</el-button>
+              <router-link to="/report/index" style="float:right;margin-right:10px">
+                <el-button link type="primary" size="small">报告中心 ›</el-button>
+              </router-link>
             </div>
             <ul class="advice-list">
               <li v-for="(a, i) in explain.advice" :key="i">{{ a }}</li>
@@ -283,14 +297,17 @@ import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
 import attributionApi from '@/api/attribution'
+import reportApi from '@/api/report'
 import AppEmpty from '@/components/AppEmpty'
+import ExplanationReport from './panels/ExplanationReport'
 import evaluationApi from '@/api/evaluation'
+import { mapGetters } from 'vuex'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 export default {
   name: 'AttributionIndex',
-  components: { AppEmpty },
+  components: { AppEmpty, ExplanationReport },
   data () {
     return {
       globalLoading: false,
@@ -329,15 +346,22 @@ export default {
     }
   },
   computed: {
+    ...mapGetters(['currentCase']),
     pdpFeatureLabel () {
       const o = this.pdpOptions.find(x => x.value === this.pdpFeature)
       return o ? o.label : this.pdpFeature
     }
   },
   created () {
+    this.applyCurrentCase(this.currentCase)
     this.loadGlobal()
     this.doPdp()
     this.loadTrust()
+  },
+  watch: {
+    currentCase (val) {
+      this.applyCurrentCase(val)
+    }
   },
   mounted () {
     window.addEventListener('resize', this.resizeHandler)
@@ -386,6 +410,20 @@ export default {
     },
     useExample () {
       Object.assign(this.form, { videoCategory: '美食', authorFans: 50000, publishHour: 3, publishWeekday: 2, publishMonth: 9 })
+    },
+    /** 填充当前分析场景的先验参数（归因页不涉及模型选择，模型由后端 active 版本决定） */
+    applyCurrentCase (c) {
+      if (!c) return
+      Object.assign(this.form, {
+        videoCategory: c.videoCategory,
+        authorFans: c.authorFans,
+        publishHour: c.publishHour,
+        publishWeekday: c.publishWeekday,
+        publishMonth: c.publishMonth
+      })
+    },
+    clearCase () {
+      this.$store.dispatch('caseStudy/clearCurrent')
     },
     doExplain () {
       this.explainLoading = true
@@ -474,18 +512,42 @@ export default {
     },
     doReport () {
       this.reportLoading = true
-      attributionApi.report({ ...this.form }).then(re => {
+      const payload = { ...this.form }
+      // 有当前场景时携带 caseId：报告与场景联动，记录场景名称快照
+      if (this.currentCase && this.currentCase.id) {
+        payload.caseId = this.currentCase.id
+        payload.name = '归因报告 · ' + this.currentCase.name
+      } else {
+        payload.name = '归因报告 · ' + this.form.videoCategory
+      }
+      reportApi.generate(payload).then(re => {
+        const reportId = re.response.reportId
+        this.$message.success('已提交生成（异步），完成后将自动打开；也可在报告中心查看')
+        this.pollReport(reportId)
+      }).catch(() => {
         this.reportLoading = false
-        const d = re.response || {}
-        if (d.url) {
-          window.open(d.url, '_blank')
-          this.$message.success('报告已生成（' + d.sizeKB + ' KB），已在新标签页打开')
+      })
+    },
+    // 递归轮询报告状态：DONE 自动打开，FAILED 提示原因
+    pollReport (reportId) {
+      reportApi.get(reportId).then(re => {
+        const r = re.response
+        if (!r) {
+          this.reportLoading = false
+          return
+        }
+        if (r.status === 'DONE') {
+          this.reportLoading = false
+          window.open('/api/report/' + r.id + '/content', '_blank')
+          this.$message.success('报告已生成（' + (r.sizeKb || '-') + ' KB），已在新标签页打开；可在「报告中心」管理/分享')
+        } else if (r.status === 'FAILED') {
+          this.reportLoading = false
+          this.$message.error('报告生成失败：' + (r.errorMsg || '请查看后端日志'))
         } else {
-          this.$message.error(d.error || '报告生成失败')
+          setTimeout(() => this.pollReport(reportId), 4000)
         }
       }).catch(() => {
         this.reportLoading = false
-        this.$message.error('报告生成失败，请查看后端日志')
       })
     },
     exportReport () {
@@ -739,5 +801,20 @@ export default {
   b {
     color: #b45309;
   }
+}
+
+/* 当前分析场景提示条 */
+.case-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, .08);
+  border: 1px solid rgba(99, 102, 241, .25);
+  color: #4f46e5;
+  font-size: 12.5px;
 }
 </style>

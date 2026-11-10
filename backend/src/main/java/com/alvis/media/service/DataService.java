@@ -20,6 +20,14 @@ public interface DataService {
     /** 样本分页预览（可按类别筛选、按视频 ID 模糊检索） */
     JsonNode samples(String platform, int page, int size, String category, String keyword);
 
+    /**
+     * 数据血缘：原始文件 → 规范化数据集 → 数据集版本 → 模型版本。
+     *
+     * <p>合并 dataset_registry.json、dataset_versions.json 与模型注册表三份元数据，
+     * 回答「线上模型用的是哪一版数据」，并给出链路完整性判断。</p>
+     */
+    JsonNode lineage(String platform);
+
     /** 触发某平台原始数据的导入（调用 Python ingest.py），返回导入结果 */
     JsonNode importPlatform(String platform);
 

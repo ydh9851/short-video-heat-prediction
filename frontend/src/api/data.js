@@ -13,6 +13,8 @@ export default {
   rawFiles: () => get('/api/data/raw-files', null, 60000),
   // 数据质量门禁（8 项断言，返回 PASS / WARN / FAIL）
   quality: platform => get('/api/data/quality', { platform }, 300000),
+  // 数据血缘：原始文件 → 规范化数据集 → 数据集版本 → 模型版本
+  lineage: platform => get('/api/data/lineage', { platform }, 30000),
   // 上传原始数据文件到 data/raw（multipart，大文件放宽到 30 分钟）
   upload: (platform, formData) =>
     form(`/api/data/upload?platform=${encodeURIComponent(platform)}`, formData, 1800000)

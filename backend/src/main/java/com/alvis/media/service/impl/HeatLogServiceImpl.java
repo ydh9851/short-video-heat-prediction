@@ -63,6 +63,39 @@ public class HeatLogServiceImpl implements HeatLogService {
     }
 
     @Override
+    public void saveBatch(List<Entry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return;
+        }
+        try {
+            jdbc.batchUpdate(
+                    "INSERT INTO t_heat_predict_log(model, video_category, author_fans, publish_hour, "
+                            + "publish_weekday, publish_month, prediction, prediction_log, grade, source, "
+                            + "creator_id, create_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,NOW())",
+                    entries, 500,
+                    (ps, e) -> {
+                        ps.setString(1, e.model);
+                        ps.setString(2, e.category);
+                        if (e.fans == null) {
+                            ps.setNull(3, java.sql.Types.BIGINT);
+                        } else {
+                            ps.setLong(3, e.fans.longValue());
+                        }
+                        ps.setObject(4, e.hour);
+                        ps.setObject(5, e.weekday);
+                        ps.setObject(6, e.month);
+                        ps.setObject(7, e.prediction);
+                        ps.setObject(8, e.predictionLog);
+                        ps.setString(9, gradeOf(e.prediction));
+                        ps.setString(10, e.source);
+                        ps.setObject(11, e.creatorId);
+                    });
+        } catch (Exception e) {
+            log.warn("批量保存预测记录失败: {}", e.getMessage());
+        }
+    }
+
+    @Override
     public JsonNode page(int page, int size) {
         if (page < 1) page = 1;
         if (size < 1) size = 10;

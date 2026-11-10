@@ -1,5 +1,5 @@
 <template>
-  <span>{{ displayValue }}</span>
+  <span>{{ formatted }}</span>
 </template>
 
 <script>
@@ -23,6 +23,11 @@ export default {
     decimals: {
       type: Number,
       default: 0
+    },
+    // 是否使用千分位（36,381），默认关闭以兼容原有调用
+    separator: {
+      type: Boolean,
+      default: false
     }
   },
   data () {
@@ -30,6 +35,15 @@ export default {
       displayValue: this.startVal,
       rafId: null,
       startTime: null
+    }
+  },
+  computed: {
+    formatted () {
+      if (!this.separator) return this.displayValue
+      return Number(this.displayValue).toLocaleString('en-US', {
+        minimumFractionDigits: this.decimals,
+        maximumFractionDigits: this.decimals
+      })
     }
   },
   watch: {

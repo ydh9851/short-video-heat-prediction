@@ -1,0 +1,32 @@
+-- V7：报告中心（Report）表
+-- 报告落库管理：与场景（Case）联动、带模型/数据版本快照、异步生成、可分享只读链接。
+CREATE TABLE IF NOT EXISTS `t_report` (
+  `id`             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '报告ID',
+  `name`           VARCHAR(120) NOT NULL COMMENT '报告名称',
+  `report_type`    VARCHAR(30)  NOT NULL DEFAULT 'attribution' COMMENT '报告类型：attribution=归因报告',
+  `case_id`        BIGINT       DEFAULT NULL COMMENT '关联场景ID（可空）',
+  `case_name`      VARCHAR(100) DEFAULT NULL COMMENT '场景名称快照（场景后续改名/删除不影响报告）',
+  `model`          VARCHAR(20)  NOT NULL DEFAULT 'lgbm' COMMENT '选用模型',
+  `model_version`  VARCHAR(60)  DEFAULT NULL COMMENT '生成时的线上模型版本（ModelRegistry active）',
+  `data_version`   VARCHAR(60)  DEFAULT NULL COMMENT '模型训练所用数据版本（dataset_versions.json）',
+  `feature_version` INT         DEFAULT NULL COMMENT '特征体系版本',
+  `params`         TEXT         COMMENT '报告输入参数 JSON（category/fans/hour/weekday/month）',
+  `status`         VARCHAR(20)  NOT NULL DEFAULT 'GENERATING' COMMENT 'GENERATING/DONE/FAILED',
+  `file_name`      VARCHAR(120) DEFAULT NULL COMMENT '报告文件名（data/reports 下）',
+  `file_path`      VARCHAR(300) DEFAULT NULL COMMENT '报告相对路径（data/reports/xxx.html）',
+  `size_kb`        DOUBLE       DEFAULT NULL COMMENT '文件大小 KB',
+  `prediction`     DOUBLE       DEFAULT NULL COMMENT '预测热度（加权互动量）',
+  `grade`          VARCHAR(20)  DEFAULT NULL COMMENT '热度等级',
+  `error_msg`      VARCHAR(1000) DEFAULT NULL COMMENT '失败原因',
+  `share_token`    VARCHAR(64)  DEFAULT NULL COMMENT '分享令牌（免登录只读访问凭证）',
+  `job_id`         BIGINT       DEFAULT NULL COMMENT '生成任务ID（t_job）',
+  `user_id`        INT          DEFAULT NULL COMMENT '创建人ID',
+  `user_name`      VARCHAR(64)  DEFAULT NULL COMMENT '创建人用户名',
+  `create_time`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `finish_time`    DATETIME     DEFAULT NULL COMMENT '生成完成时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_report_share_token` (`share_token`),
+  KEY `idx_report_user` (`user_id`),
+  KEY `idx_report_case` (`case_id`),
+  KEY `idx_report_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报告中心';

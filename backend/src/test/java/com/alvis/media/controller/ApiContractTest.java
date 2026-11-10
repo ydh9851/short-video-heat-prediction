@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -26,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(classes = MediaApplication.class)
 @AutoConfigureMockMvc
+@WithMockUser(username = "admin", roles = "ADMIN")
 class ApiContractTest {
 
     @Autowired
@@ -63,7 +66,9 @@ class ApiContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(1)))
                 .andExpect(jsonPath("$.response.prediction", greaterThan(0.0)))
-                .andExpect(jsonPath("$.response.metrics.r2", greaterThan(0.0)));
+                .andExpect(jsonPath("$.response.metrics.r2", greaterThan(0.0)))
+                // 治理闭环：预测结果必须回传实际参与推理的模型版本
+                .andExpect(jsonPath("$.response.modelVersion").isNotEmpty());
     }
 
     @Test
@@ -91,6 +96,22 @@ class ApiContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(1)))
                 .andExpect(jsonPath("$.response.list").isArray());
+    }
+
+    @Test
+    @WithAnonymousUser
+    @DisplayName("匿名访问业务接口返回 401（默认拒绝，不再 permitAll）")
+    void anonymousRequestIsRejected() throws Exception {
+        mvc.perform(get("/api/data/platforms"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "demo", roles = "USER")
+    @DisplayName("普通用户访问管理接口返回 403")
+    void normalUserCannotAccessAdminApi() throws Exception {
+        mvc.perform(get("/api/admin/user/list"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

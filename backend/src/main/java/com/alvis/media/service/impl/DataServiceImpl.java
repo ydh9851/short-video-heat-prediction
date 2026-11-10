@@ -1,7 +1,9 @@
 package com.alvis.media.service.impl;
 
 import com.alvis.media.service.DataService;
+import com.alvis.media.service.ModelRegistryService;
 import com.alvis.media.utility.PythonCliRunner;
+import com.alvis.media.utility.PythonGateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -20,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -43,6 +46,8 @@ import java.util.stream.Stream;
  */
 @Service
 public class DataServiceImpl implements DataService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DataServiceImpl.class);
 
     /** 与分级模块一致的热度分级阈值 */
     private static final double GRADE_LOW = 684.0;
@@ -81,6 +86,10 @@ public class DataServiceImpl implements DataService {
     @Value("${system.python.qualityScript:../algorithm/datasets/quality_check.py}")
     private String qualityScript;
 
+    /** 数据集版本登记清单（algorithm/datasets/versioning.py 产出） */
+    @Value("${system.data.versions:../data/processed/dataset_versions.json}")
+    private String versionsPath;
+
     /** 允许上传的原始数据格式（与 ingest.py 的 _read_any 保持一致） */
     private static final List<String> RAW_EXT = List.of(".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".json");
 
@@ -93,15 +102,19 @@ public class DataServiceImpl implements DataService {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final PythonCliRunner pythonCliRunner;
+    private final PythonGateway gateway;
+
+    /** 模型注册表：血缘链路末端读取 active 版本的 dataVersion */
+    private final ModelRegistryService registryService;
 
     /**
-     * 只注入算法引擎调用器；其余为 @Value 配置项，走字段注入。
+     * 只注入算法引擎网关与模型注册表；其余为 @Value 配置项，走字段注入。
      * （不能用 Lombok @AllArgsConstructor —— 它会把 @Value 的 String 字段也作为构造参数，
      *  Spring 无法为 java.lang.String 找到候选 Bean）
      */
-    public DataServiceImpl(PythonCliRunner pythonCliRunner) {
-        this.pythonCliRunner = pythonCliRunner;
+    public DataServiceImpl(PythonGateway gateway, ModelRegistryService registryService) {
+        this.gateway = gateway;
+        this.registryService = registryService;
     }
 
     private final ObjectMapper om = new ObjectMapper();
@@ -226,13 +239,30 @@ public class DataServiceImpl implements DataService {
                     if (head.startsWith("\uFEFF")) {   // 去掉 pandas 写出的 UTF-8 BOM
                         head = head.substring(1);
                     }
-                    header = head.split(",", -1);
+                    header = parseCsvLine(head);
+                    int cols = header.length;
                     String line;
+                    long lineNo = 1;
+                    int badLines = 0;
                     while ((line = br.readLine()) != null) {
+                        lineNo++;
                         if (line.trim().isEmpty()) {
                             continue;
                         }
-                        list.add(line.split(",", -1));
+                        String[] cells = parseCsvLine(line);
+                        // 列数校验：引号内逗号/换行导致的错位行直接跳过并计数，
+                        // 避免一条坏样本把后续统计整体带偏（P2-2）
+                        if (cells.length != cols) {
+                            if (++badLines <= 5) {
+                                log.warn("数据集 {} 第 {} 行列数异常（期望 {} 实际 {}），已跳过",
+                                        platform, lineNo, cols, cells.length);
+                            }
+                            continue;
+                        }
+                        list.add(cells);
+                    }
+                    if (badLines > 0) {
+                        log.warn("数据集 {} 共跳过 {} 行列数异常样本", platform, badLines);
                     }
                 }
             } catch (Exception e) {
@@ -251,6 +281,42 @@ public class DataServiceImpl implements DataService {
             }
         }
         return -1;
+    }
+
+    /**
+     * 引号感知的 CSV 行解析（RFC 4180 子集）：
+     * 双引号包裹的字段内允许出现逗号与转义双引号（""），
+     * 解决 `line.split(",")` 遇到含逗号标题/类别时列错位的问题（P2-2）。
+     */
+    static String[] parseCsvLine(String line) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean inQuotes = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (inQuotes) {
+                if (ch == '"') {
+                    // "" 为转义后的字面双引号
+                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                        cur.append('"');
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    cur.append(ch);
+                }
+            } else if (ch == '"') {
+                inQuotes = true;
+            } else if (ch == ',') {
+                cells.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(ch);
+            }
+        }
+        cells.add(cur.toString());
+        return cells.toArray(new String[0]);
     }
 
     private static double d(String s) {
@@ -428,7 +494,7 @@ public class DataServiceImpl implements DataService {
         List<String> args = Arrays.asList("--platform", platform);
         String out;
         try {
-            out = pythonCliRunner.run(ingestScript, args, 900);
+            out = gateway.runCli(ingestScript, args, 900);
         } catch (Exception e) {
             throw new RuntimeException("调用数据导入脚本失败：" + e.getMessage(), e);
         }
@@ -444,6 +510,172 @@ public class DataServiceImpl implements DataService {
             cache.remove(platform);
         }
         return node;
+    }
+
+    // ------------------------------------------------------------------ 数据血缘
+    @Override
+    public JsonNode lineage(String platform) {
+        JsonNode registry = readRegistry();
+        String pf = (platform == null || platform.trim().isEmpty())
+                ? defaultPlatform(registry)
+                : platform.trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED.contains(pf)) {
+            throw new IllegalArgumentException("不支持的平台：" + platform + "（可选 " + SUPPORTED + "）");
+        }
+        JsonNode meta = registry == null ? null : registry.path("datasets").path(pf);
+
+        ObjectNode root = om.createObjectNode();
+        root.put("platform", pf);
+        root.put("displayName", PLATFORM_NAMES.getOrDefault(pf, pf));
+        root.put("updatedAt", registry == null ? "" : registry.path("updatedAt").asText(""));
+
+        // 1. 原始文件：注册表记录的是项目根相对路径，这里只取文件名拼到 rawDir
+        String rawRel = meta == null ? "" : meta.path("rawFile").asText("");
+        String rawName = rawRel.isEmpty() ? "" : Paths.get(rawRel).getFileName().toString();
+        ObjectNode raw = root.putObject("raw");
+        raw.put("path", rawName.isEmpty() ? "" : "data/raw/" + rawName);
+        raw.put("name", rawName);
+        fillFileInfo(raw, rawName.isEmpty() ? null : Paths.get(rawDir).resolve(rawName).toFile());
+
+        // 2. 规范化数据集
+        File processed = resolveFile(pf);
+        ObjectNode proc = root.putObject("processed");
+        proc.put("path", processed == null ? "data/processed/" + pf + "_clean.csv" : "data/processed/" + processed.getName());
+        proc.put("name", processed == null ? "" : processed.getName());
+        fillFileInfo(proc, processed);
+        proc.put("rows", meta == null ? 0 : meta.path("rows").asLong(0));
+        proc.put("categoryCount", meta == null ? 0 : meta.path("categoryCount").asInt(0));
+        proc.put("timeStart", meta == null ? "" : meta.path("timeStart").asText(""));
+        proc.put("timeEnd", meta == null ? "" : meta.path("timeEnd").asText(""));
+
+        // 3. 数据集版本：列表最后一条视为当前版本（与 versioning.current_version 一致）
+        JsonNode versionsRoot = readJson(versionsPath);
+        JsonNode entries = versionsRoot == null ? null : versionsRoot.path("datasets").path(pf);
+        ArrayNode versions = root.putArray("versions");
+        String currentVersion = "";
+        if (entries != null && entries.isArray()) {
+            for (int i = 0; i < entries.size(); i++) {
+                JsonNode e = entries.get(i);
+                String version = e.path("version").asText("");
+                String file = e.path("file").asText("");
+                boolean current = i == entries.size() - 1;
+                if (current) {
+                    currentVersion = version;
+                }
+                ObjectNode item = versions.addObject();
+                item.put("version", version);
+                item.put("fingerprint", e.path("fingerprint").asText(""));
+                item.put("file", file);
+                item.put("rows", e.path("rows").asLong(0));
+                item.put("registeredAt", e.path("registered_at").asText(""));
+                if (e.hasNonNull("heat_median")) {
+                    item.put("heatMedian", e.path("heat_median").asDouble());
+                } else {
+                    item.putNull("heatMedian");
+                }
+                if (e.hasNonNull("heat_p90")) {
+                    item.put("heatP90", e.path("heat_p90").asDouble());
+                } else {
+                    item.putNull("heatP90");
+                }
+                item.put("categoryCount", e.hasNonNull("category_count") ? e.path("category_count").asInt() : null);
+                item.put("current", current);
+                item.put("matchesProcessed", !file.isEmpty() && processed != null && file.equals(processed.getName()));
+                item.put("exists", !file.isEmpty() && Files.isRegularFile(Paths.get(processedDir, file)));
+            }
+        }
+        root.put("currentVersion", currentVersion);
+
+        // 4. 模型版本：active 版本记录的 dataVersion 是否指向当前数据集版本
+        ArrayNode models = root.putArray("models");
+        int linked = 0;
+        JsonNode modelRegistry = registryService == null ? null : registryService.read();
+        if (modelRegistry != null && modelRegistry.path("models").isObject()) {
+            List<String> names = new ArrayList<>();
+            modelRegistry.path("models").fieldNames().forEachRemaining(names::add);
+            Collections.sort(names);
+            for (String model : names) {
+                JsonNode entry = modelRegistry.path("models").path(model);
+                String active = entry.path("active").asText("");
+                JsonNode item = activeItem(entry, active);
+                String dataVersion = item == null ? "" : item.path("dataVersion").asText("");
+                boolean dataLinked = !dataVersion.isEmpty() && dataVersion.equals(currentVersion);
+                if (dataLinked) {
+                    linked++;
+                }
+                ObjectNode o = models.addObject();
+                o.put("model", model);
+                o.put("activeVersion", active);
+                o.put("featureVersion", item == null ? 0 : item.path("featureVersion").asInt(0));
+                o.put("dataVersion", dataVersion);
+                o.put("dataLinked", dataLinked);
+                o.put("loadable", registryService.activeVersionMeta(model) != null);
+                if (item != null && item.hasNonNull("r2")) {
+                    o.put("r2", item.path("r2").asDouble());
+                } else {
+                    o.putNull("r2");
+                }
+                if (item != null && item.hasNonNull("mae")) {
+                    o.put("mae", item.path("mae").asDouble());
+                } else {
+                    o.putNull("mae");
+                }
+                if (item != null && item.hasNonNull("rmse")) {
+                    o.put("rmse", item.path("rmse").asDouble());
+                } else {
+                    o.putNull("rmse");
+                }
+                o.put("trainedAt", item == null ? "" : item.path("trainedAt").asText(""));
+            }
+        }
+
+        boolean rawExists = raw.path("exists").asBoolean(false);
+        boolean processedExists = processed != null;
+        ObjectNode summary = root.putObject("summary");
+        summary.put("versionCount", versions.size());
+        summary.put("modelCount", models.size());
+        summary.put("linkedModelCount", linked);
+        summary.put("rawExists", rawExists);
+        summary.put("processedExists", processedExists);
+        summary.put("chainComplete", rawExists && processedExists && versions.size() > 0 && linked > 0);
+        return root;
+    }
+
+    /** 读取 JSON 文件，缺失或解析失败返回 null（血缘页降级展示为空，不阻断页面）。 */
+    private JsonNode readJson(String path) {
+        try {
+            File f = new File(path);
+            return f.isFile() ? om.readTree(f) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 填充文件体积与更新时间；文件不存在时 exists=false。 */
+    private void fillFileInfo(ObjectNode node, File file) {
+        boolean exists = file != null && file.isFile();
+        node.put("exists", exists);
+        if (exists) {
+            node.put("sizeMB", Math.round(file.length() / 1024.0 / 1024.0 * 100) / 100.0);
+            node.put("modifiedAt", LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(file.lastModified()), ZoneId.systemDefault()).format(TIME_FORMAT));
+        } else {
+            node.putNull("sizeMB");
+            node.put("modifiedAt", "");
+        }
+    }
+
+    /** 在模型的版本列表中查找 active 指向的条目。 */
+    private JsonNode activeItem(JsonNode entry, String version) {
+        if (version == null || version.isEmpty()) {
+            return null;
+        }
+        for (JsonNode v : entry.path("versions")) {
+            if (version.equals(v.path("version").asText())) {
+                return v;
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ 原始数据文件管理
@@ -556,7 +788,7 @@ public class DataServiceImpl implements DataService {
         List<String> args = Arrays.asList("--platform", pf, "--write");
         String out;
         try {
-            out = pythonCliRunner.run(qualityScript, args, 300);
+            out = gateway.runCli(qualityScript, args, 300);
         } catch (Exception e) {
             throw new RuntimeException("调用数据质量检查脚本失败：" + e.getMessage(), e);
         }

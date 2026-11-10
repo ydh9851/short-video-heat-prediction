@@ -1,7 +1,9 @@
 package com.alvis.media.service.impl;
 
 import com.alvis.media.service.GradingService;
+import com.alvis.media.service.ModelRegistryService;
 import com.alvis.media.utility.PythonCliRunner;
+import com.alvis.media.utility.PythonGateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,16 +19,19 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class GradingServiceImpl implements GradingService {
 
-    private final PythonCliRunner runner;
+    private final PythonGateway gateway;
     private final StringRedisTemplate redisTemplate;
+    private final ModelRegistryService registry;
     private final ObjectMapper om = new ObjectMapper();
 
     @Value("${system.python.gradingScript:}")
     private String gradingScript;
 
-    public GradingServiceImpl(PythonCliRunner runner, StringRedisTemplate redisTemplate) {
-        this.runner = runner;
+    public GradingServiceImpl(PythonGateway gateway, StringRedisTemplate redisTemplate,
+                              ModelRegistryService registry) {
+        this.gateway = gateway;
         this.redisTemplate = redisTemplate;
+        this.registry = registry;
     }
 
     @Override
@@ -34,7 +39,9 @@ public class GradingServiceImpl implements GradingService {
         if (k != 3 && k != 4 && k != 5) {
             k = 3;
         }
-        String cacheKey = "grading:k" + k;
+        // 缓存 key 携带线上模型版本：重训/promote 后旧阈值缓存自动失效
+        String version = registry.activeVersion("lgbm");
+        String cacheKey = "grading:" + (version == null ? "none" : version) + ":k" + k;
         try {
             String s = redisTemplate.opsForValue().get(cacheKey);
             if (s != null) {
@@ -42,7 +49,7 @@ public class GradingServiceImpl implements GradingService {
             }
         } catch (Exception ignore) {
         }
-        String out = runner.run(gradingScript, Arrays.asList("--k", String.valueOf(k)));
+        String out = gateway.runCli(gradingScript, Arrays.asList("--k", String.valueOf(k)));
         try {
             JsonNode node = om.readTree(PythonCliRunner.lastJsonLine(out));
             if (node.hasNonNull("error")) {

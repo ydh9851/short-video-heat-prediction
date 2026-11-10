@@ -138,3 +138,48 @@
 | `PATCH` | `/error` | — | — |
 | `POST` | `/error` | — | — |
 | `PUT` | `/error` | — | — |
+
+## 补充分组（手工维护）
+
+> 以下 4 组共 20 个端点为阶段 2~3 新增能力，尚未包含在 OpenAPI 自动生成范围内，故在此手工补充；
+> 待后端以最新代码重新生成 `docs/API.md` 后，本节可删除。
+
+### 数据血缘
+
+| 方法 | 路径 | 说明 | 参数 |
+|---|---|---|---|
+| `GET` | `/api/data/lineage` | 原始文件 → 规范化数据集 → 数据集版本 → 模型版本 | platform(query) |
+
+### 场景库
+
+| 方法 | 路径 | 说明 | 参数 |
+|---|---|---|---|
+| `POST` | `/api/case` | 新建场景 | body(JSON) |
+| `GET` | `/api/case/page` | 场景分页（关键字/模型） | page(query)、size(query)、keyword(query) |
+| `GET` | `/api/case/{id}` | 场景详情 | id(path,必填) |
+| `PUT` | `/api/case/{id}` | 更新场景 | id(path,必填)、body(JSON) |
+| `DELETE` | `/api/case/{id}` | 删除场景 | id(path,必填) |
+| `POST` | `/api/case/compare` | 2~3 个场景横向对比 | body(JSON) |
+
+### 报告中心
+
+| 方法 | 路径 | 说明 | 参数 |
+|---|---|---|---|
+| `POST` | `/api/report/generate` | 生成自包含 HTML 归因报告 | body(JSON) |
+| `GET` | `/api/report/page` | 报告分页（仅本人/管理员） | page(query)、size(query)、keyword(query) |
+| `GET` | `/api/report/{id}` | 报告元信息 | id(path,必填) |
+| `DELETE` | `/api/report/{id}` | 删除报告与文件 | id(path,必填) |
+| `POST` | `/api/report/{id}/share` | 生成分享令牌 | id(path,必填) |
+| `DELETE` | `/api/report/{id}/share` | 撤销分享令牌 | id(path,必填) |
+| `GET` | `/api/report/{id}/content` | 读取报告 HTML（内嵌查看/下载） | id(path,必填) |
+| `GET` | `/api/report/shared/{token}` | 免登录只读访问（白名单接口） | token(path,必填) |
+
+### 任务中心与系统状态
+
+| 方法 | 路径 | 说明 | 参数 |
+|---|---|---|---|
+| `GET` | `/api/admin/job/page` | 任务分页（状态/类型） | page(query)、size(query)、status(query)、jobType(query) |
+| `GET` | `/api/admin/job/{id}` | 任务详情 | id(path,必填) |
+| `POST` | `/api/admin/job/{id}/retry` | 失败任务重试 | id(path,必填) |
+| `GET` | `/api/admin/system/status` | JVM / 数据库 / Redis / 引擎 / 队列状态 | — |
+| `GET` | `/api/admin/operation-log` | 操作审计分页 | page(query)、size(query)、operation(query) |

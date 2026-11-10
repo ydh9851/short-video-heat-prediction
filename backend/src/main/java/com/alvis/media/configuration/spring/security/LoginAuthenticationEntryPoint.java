@@ -24,6 +24,8 @@ public final class LoginAuthenticationEntryPoint extends LoginUrlAuthenticationE
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException, ServletException {
+        // 必须同时设置 HTTP 401，前端 axios 拦截器与网关/监控才能正确识别未登录
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         RestUtil.response(response, SystemCode.UNAUTHORIZED);
     }
 

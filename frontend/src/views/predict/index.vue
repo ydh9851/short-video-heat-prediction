@@ -22,6 +22,11 @@
         <el-col :xs="24" :lg="9">
           <div class="form-panel">
             <el-form label-position="top" class="predict-form">
+              <!-- 当前分析场景提示：场景参数已自动填充，实现「全流程不重复输入」 -->
+              <div v-if="currentCase" class="case-banner">
+                <span>已应用场景「{{ currentCase.name }}」的参数，可直接预测或微调</span>
+                <el-button link type="primary" size="small" @click="clearCase">清除</el-button>
+              </div>
               <el-form-item label="预测模型">
                 <el-select v-model="form.model" style="width:100%">
                   <el-option label="LightGBM（推荐，效果最佳）" value="lgbm" />
@@ -40,15 +45,24 @@
               </el-form-item>
 
               <el-form-item label="作者粉丝数">
-                <el-input-number v-model="form.authorFans" :min="0" :step="10000" :controls="false" style="width:100%" />
+                <el-input-number v-model="form.authorFans" :min="0" :max="1000000" :step="10000" :controls="false" style="width:100%" />
+                <el-slider
+                  v-model="form.authorFans"
+                  :min="0"
+                  :max="1000000"
+                  :step="5000"
+                  :format-tooltip="fmtFansShort"
+                  class="fans-slider" />
+              </el-form-item>
+
+              <el-form-item label="发布小时（0-23）">
+                <div class="hour-slider">
+                  <el-slider v-model="form.publishHour" :min="0" :max="23" :marks="hourMarks" />
+                  <span class="hour-val">{{ form.publishHour }} 点</span>
+                </div>
               </el-form-item>
 
               <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="发布小时（0-23）">
-                    <el-input-number v-model="form.publishHour" :min="0" :max="23" style="width:100%" />
-                  </el-form-item>
-                </el-col>
                 <el-col :span="12">
                   <el-form-item label="发布星期">
                     <el-select v-model="form.publishWeekday" style="width:100%">
@@ -56,13 +70,14 @@
                     </el-select>
                   </el-form-item>
                 </el-col>
+                <el-col :span="12">
+                  <el-form-item label="发布月份">
+                    <el-select v-model="form.publishMonth" style="width:100%">
+                      <el-option v-for="m in 12" :key="m" :label="m + ' 月'" :value="m" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
               </el-row>
-
-              <el-form-item label="发布月份">
-                <el-select v-model="form.publishMonth" style="width:100%">
-                  <el-option v-for="m in 12" :key="m" :label="m + ' 月'" :value="m" />
-                </el-select>
-              </el-form-item>
 
               <el-form-item label="快速填入示例">
                 <div class="example-btns">
@@ -93,6 +108,34 @@
                   <el-button size="small" type="primary" plain @click="exportReport('pdf')">导出 PDF</el-button>
                 </div>
               </div>
+
+              <!-- 决策卡：先给结论与动作，再给指标细节 -->
+              <div v-if="decision" class="decision-card" :class="'lv-' + gradeKey(decision.grade)">
+                <div class="dc-main">
+                  <div class="dc-eyebrow">决策卡 · DECISION</div>
+                  <div class="dc-headline">
+                    预测热度 <b>{{ formatNum(decision.heat) }}</b>
+                    <el-tag :type="gradeTag(decision.grade)" size="small" effect="dark">{{ decision.grade }}</el-tag>
+                  </div>
+                  <div class="dc-line">
+                    <span class="dc-chip">90% 区间</span>
+                    <span>{{ decision.rangeText }}</span>
+                    <span class="dc-chip">不确定性</span>
+                    <span :class="'unc-' + decision.uncertaintyKey">{{ decision.uncertainty }}</span>
+                  </div>
+                  <div class="dc-advice">
+                    <span class="dc-chip">建议</span>
+                    <span>{{ decision.advice }}</span>
+                  </div>
+                  <div class="dc-risk">{{ decision.risk }}</div>
+                </div>
+                <div class="dc-actions">
+                  <el-button size="small" type="primary" @click="goAttribution">查看归因</el-button>
+                  <el-button size="small" :loading="saveCaseLoading" @click="saveAsScene">存为场景</el-button>
+                  <el-button size="small" plain :disabled="!currentCase" @click="addToCompare">加入对比</el-button>
+                </div>
+              </div>
+
               <div class="kpi-row">
                 <div class="kpi">
                   <div class="kpi-label">预测热度（加权互动量）</div>
@@ -116,6 +159,7 @@
                   </div>
                   <el-tag v-if="result.trainedNow" type="warning" size="small" class="kpi-tag">本次为新训练模型</el-tag>
                   <el-tag v-else type="info" size="small" class="kpi-tag">{{ modelName(result.model) }}</el-tag>
+                  <div class="kpi-sub">模型版本：{{ result.modelVersion || '未登记（请先同步注册表）' }}</div>
                 </div>
               </div>
 
@@ -298,6 +342,8 @@ import { GridComponent, TooltipComponent, LegendComponent, MarkPointComponent, M
 import { CanvasRenderer } from 'echarts/renderers'
 
 import predictApi from '@/api/predict'
+import caseApi from '@/api/case'
+import { mapGetters } from 'vuex'
 import { intervalOption, modelOption, whatIfOption } from './charts/options.mjs'
 import { parseBatch as parseBatchText } from './batch/parseBatch.mjs'
 import IntervalPanel from './panels/IntervalPanel'
@@ -329,6 +375,9 @@ export default {
       whatifDimension: 'publishHour',
       categories: ['搞笑', '美食', '音乐', '美妆', '穿搭', '舞蹈', '旅行', '宠物', '影视', '健身', '情感', '游戏', '生活', '知识'],
       weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+      // 发布小时滑杆刻度（只标关键时段，避免 24 个数字挤在一起）
+      hourMarks: { 0: '0', 6: '6', 12: '12', 18: '18', 23: '23' },
+      saveCaseLoading: false,
       examples: [
         { videoCategory: '美食', authorFans: 500000, publishHour: 20, publishWeekday: 5, publishMonth: 6 },
         { videoCategory: '旅行', authorFans: 5000, publishHour: 15, publishWeekday: 2, publishMonth: 9 },
@@ -358,6 +407,7 @@ export default {
     }
   },
   computed: {
+    ...mapGetters(['currentCase']),
     reportMeta () {
       const r = this.result
       if (!r) return ''
@@ -365,11 +415,89 @@ export default {
       const pad = n => String(n).padStart(2, '0')
       const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
       return `类别 ${this.form.videoCategory} · 模型 ${this.modelName(r.model)} · 生成于 ${date}`
+    },
+    /**
+     * 决策卡：把「预测值 + 区间 + what-if」压缩成一句结论和一条可执行建议。
+     * 区间优先取有覆盖保证的保形区间，未计算时退回分位数区间。
+     */
+    decision () {
+      const r = this.result
+      if (!r) return null
+      const heat = Number(r.prediction)
+      if (!Number.isFinite(heat)) return null
+
+      let lo = null
+      let hi = null
+      if (this.conformal && this.conformal.lo != null && this.conformal.hi != null) {
+        lo = Number(this.conformal.lo)
+        hi = Number(this.conformal.hi)
+      } else if (this.interval && this.interval.interval) {
+        lo = Number(this.interval.interval.p10)
+        hi = Number(this.interval.interval.p90)
+      }
+      const hasRange = lo != null && hi != null && Number.isFinite(lo) && Number.isFinite(hi)
+      const rangeText = hasRange ? `${this.formatNum(lo)} ~ ${this.formatNum(hi)}` : '区间计算中…'
+
+      const grade = (this.conformal && this.conformal.grade) || this.gradeOf(heat)
+
+      // 不确定性用「区间宽度 / 点预测」衡量：>2 高、>1 中、否则低
+      let uncertaintyKey = 'none'
+      let uncertainty = '待区间结果'
+      if (hasRange && heat > 0) {
+        const ratio = (hi - lo) / heat
+        if (ratio > 2) {
+          uncertaintyKey = 'high'
+          uncertainty = `高（区间约为点预测的 ${ratio.toFixed(1)} 倍）`
+        } else if (ratio > 1) {
+          uncertaintyKey = 'mid'
+          uncertainty = `中（区间约为点预测的 ${ratio.toFixed(1)} 倍）`
+        } else {
+          uncertaintyKey = 'low'
+          uncertainty = `低（区间约为点预测的 ${ratio.toFixed(2)} 倍）`
+        }
+      }
+
+      let advice = '点击下方 what-if 的「开始探索」，看看调整发布时段或类别能带来多少增量。'
+      if (this.whatif && this.whatif.best) {
+        const b = this.whatif.best
+        const dim = this.dimensionName(this.whatif.dimension) || '该参数'
+        const gainPct = Number(b.gain_pct) || 0
+        advice = gainPct > 0.01
+          ? `${dim}改为「${b.label}」，预计热度提升 ${(gainPct * 100).toFixed(1)}%（+${this.formatNum(b.gain)}）。`
+          : `当前${dim}已接近最优（最优「${b.label}」仅高 ${(gainPct * 100).toFixed(1)}%），建议把精力放在选题与内容本身。`
+      } else if (this.whatif && this.whatif.candidates && this.whatif.candidates.length) {
+        const best = this.whatif.candidates.reduce((a, b) => (Number(b.prediction) > Number(a.prediction) ? b : a))
+        advice = `${this.dimensionName(this.whatif.dimension) || '该参数'}最优取值为「${best.label}」，可达热度 ${this.formatNum(best.prediction)}。`
+      }
+
+      const risks = {
+        低热度: '预期热度偏低：建议先小成本试水，验证选题与封面后再决定是否追加投入。',
+        中热度: '预期热度中等：可正常投放，但需盯紧前 2 小时完播与互动，数据不达预期及时止损。',
+        高热度: '预期热度较高：可加大投放并准备承接流量，同时注意同质化竞争与内容合规风险。'
+      }
+      return {
+        heat,
+        grade,
+        lo,
+        hi,
+        rangeText,
+        uncertainty,
+        uncertaintyKey,
+        advice,
+        risk: risks[grade] || risks[this.gradeOf(heat)]
+      }
     }
   },
   created () {
+    this.applyCurrentCase(this.currentCase)
     this.loadMetrics()
     this.loadLogs()
+  },
+  watch: {
+    // 用户在场景库/数据页切换当前场景后，本页表单随之更新（仅正向填充，不覆盖用户已改的手动输入以外的状态）
+    currentCase (val) {
+      this.applyCurrentCase(val)
+    }
   },
   mounted () {
     window.addEventListener('resize', this.resizeHandler)
@@ -396,6 +524,21 @@ export default {
     /* ---------------- 预测 ---------------- */
     fillExample (idx) {
       Object.assign(this.form, this.examples[idx])
+    },
+    /** 把当前分析场景的完整先验参数填充到表单（不清空结果区，由用户决定何时重新预测） */
+    applyCurrentCase (c) {
+      if (!c) return
+      Object.assign(this.form, {
+        model: c.model || 'lgbm',
+        videoCategory: c.videoCategory,
+        authorFans: c.authorFans,
+        publishHour: c.publishHour,
+        publishWeekday: c.publishWeekday,
+        publishMonth: c.publishMonth
+      })
+    },
+    clearCase () {
+      this.$store.dispatch('caseStudy/clearCurrent')
     },
     predict () {
       this.loading = true
@@ -591,6 +734,77 @@ export default {
     },
     gradeTag (g) {
       return { 低热度: 'info', 中热度: 'warning', 高热度: 'danger' }[g] || 'info'
+    },
+    gradeKey (g) {
+      return { 低热度: 'low', 中热度: 'mid', 高热度: 'high' }[g] || 'mid'
+    },
+    /** what-if 维度 → 中文名 */
+    dimensionName (d) {
+      return {
+        publishHour: '发布时段',
+        publishWeekday: '发布星期',
+        publishMonth: '发布月份',
+        videoCategory: '视频类别'
+      }[d] || ''
+    },
+    /** 粉丝数缩写（用于滑杆 tooltip） */
+    fmtFansShort (v) {
+      const n = Number(v) || 0
+      if (n >= 10000) return (n / 10000).toFixed(n % 10000 === 0 ? 0 : 1) + ' 万'
+      return String(n)
+    },
+    /* ---------------- 场景沉淀与联动 ---------------- */
+    /** 把当前表单打包成场景快照，供归因页 / 场景库复用 */
+    caseSnapshot () {
+      return {
+        id: null,
+        name: `${this.form.videoCategory} · ${this.weekdays[this.form.publishWeekday]} ${this.form.publishHour}点`,
+        model: this.form.model,
+        videoCategory: this.form.videoCategory,
+        authorFans: this.form.authorFans,
+        publishHour: this.form.publishHour,
+        publishWeekday: this.form.publishWeekday,
+        publishMonth: this.form.publishMonth
+      }
+    },
+    goAttribution () {
+      this.$store.dispatch('caseStudy/setCurrent', this.caseSnapshot())
+      this.$router.push('/attribution')
+    },
+    addToCompare () {
+      if (!this.currentCase) {
+        this.$message.warning('当前还没有已保存的场景，请先「存为场景」')
+        return
+      }
+      this.$store.dispatch('caseCompare/add', this.currentCase).then(ok => {
+        if (ok) this.$message.success('已加入对比托盘')
+        else this.$message.warning('该场景已在托盘中，或托盘已满（最多 3 个）')
+      })
+    },
+    saveAsScene () {
+      const snapshot = this.caseSnapshot()
+      this.$prompt('为当前预测场景命名', '存为场景', {
+        confirmButtonText: '保存',
+        cancelButtonText: '取消',
+        inputValue: snapshot.name,
+        inputValidator: v => (v && v.trim().length > 0) || '名称不能为空'
+      }).then(({ value }) => {
+        delete snapshot.id
+        this.saveCaseLoading = true
+        caseApi.create({
+          ...snapshot,
+          name: value.trim(),
+          description: `预测页沉淀 · ${this.modelName(this.form.model)} · 预测热度 ${this.formatNum(this.result && this.result.prediction)}`
+        }).then(re => {
+          const saved = { ...snapshot, id: re.response, name: value.trim() }
+          this.$store.dispatch('caseStudy/setCurrent', saved)
+          return this.$store.dispatch('caseCompare/add', saved).then(ok => {
+            this.$message.success(ok
+              ? '已存入场景库、设为当前场景并加入对比托盘'
+              : '已存入场景库并设为当前场景')
+          })
+        }).catch(() => {}).finally(() => { this.saveCaseLoading = false })
+      }).catch(() => {})
     }
   }
 }
@@ -785,9 +999,147 @@ export default {
 
 /* ============ 交互式 what-if ============ */
 
+/* ============ 滑杆输入 ============ */
+.fans-slider {
+  margin-top: 4px;
+}
 
+.hour-slider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 
+  .el-slider {
+    flex: 1;
+    padding-bottom: 10px;
+  }
 
+  .hour-val {
+    flex-shrink: 0;
+    min-width: 46px;
+    text-align: right;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: #4f46e5;
+  }
+}
 
+/* ============ 决策卡 ============ */
+.decision-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid #eef0f6;
+  border-radius: 12px;
+  background: #fafbfe;
 
+  &.lv-high { background: linear-gradient(160deg, #fff5f5 0%, #ffffff 100%); border-color: #fecaca; }
+  &.lv-mid { background: linear-gradient(160deg, #fffbeb 0%, #ffffff 100%); border-color: #fde68a; }
+  &.lv-low { background: linear-gradient(160deg, #f8fafc 0%, #ffffff 100%); border-color: #e2e8f0; }
+
+  .dc-main {
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+
+  .dc-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #94a3b8;
+  }
+
+  .dc-headline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    font-size: 14px;
+    color: #475569;
+
+    b {
+      font-size: 26px;
+      font-weight: 750;
+      color: #1e293b;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .dc-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: #475569;
+  }
+
+  .dc-chip {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4f46e5;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .unc-low { color: #10b981; font-weight: 600; }
+  .unc-mid { color: #f59e0b; font-weight: 600; }
+  .unc-high { color: #ef4444; font-weight: 600; }
+  .unc-none { color: #94a3b8; }
+
+  .dc-advice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: #334155;
+  }
+
+  .dc-risk {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.75;
+    color: #92400e;
+  }
+
+  &.lv-low .dc-risk { color: #64748b; }
+  &.lv-high .dc-risk { color: #b91c1c; }
+
+  .dc-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+
+    .el-button {
+      width: 100%;
+      margin-left: 0;
+    }
+  }
+}
+
+/* 当前分析场景提示条 */
+.case-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, .08);
+  border: 1px solid rgba(99, 102, 241, .25);
+  color: #4f46e5;
+  font-size: 12.5px;
+}
 </style>

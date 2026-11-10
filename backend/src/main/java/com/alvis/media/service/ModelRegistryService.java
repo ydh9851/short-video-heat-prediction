@@ -1,6 +1,7 @@
 package com.alvis.media.service;
 
 import com.alvis.media.utility.PythonCliRunner;
+import com.alvis.media.utility.PythonGateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -15,9 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -44,22 +45,22 @@ public class ModelRegistryService {
     @Value("${system.python.registryScript:../algorithm/prediction/registry.py}")
     private String registryScript;
 
-    private final PythonCliRunner runner;
+    private final PythonGateway gateway;
     private final ObjectMapper om = new ObjectMapper();
 
-    public ModelRegistryService(PythonCliRunner runner) {
-        this.runner = runner;
+    public ModelRegistryService(PythonGateway gateway) {
+        this.gateway = gateway;
     }
 
     /** 扫描 model_cache 并刷新注册表，返回摘要。 */
     public JsonNode sync() {
-        String out = runner.run(registryScript, List.of("--sync"), 180);
+        String out = gateway.runCli(registryScript, List.of("--sync"), 180);
         return parse(PythonCliRunner.lastJsonLine(out));
     }
 
     /** 读取当前注册表摘要（不触发扫描）。 */
     public JsonNode list() {
-        String out = runner.run(registryScript, List.of("--list"), 120);
+        String out = gateway.runCli(registryScript, List.of("--list"), 120);
         return parse(PythonCliRunner.lastJsonLine(out));
     }
 
@@ -76,16 +77,34 @@ public class ModelRegistryService {
         ArrayNode versions = (ArrayNode) entry.path("versions");
         boolean hit = false;
         for (JsonNode v : versions) {
-            ObjectNode vo = (ObjectNode) v;
-            if (version.equals(vo.path("version").asText())) {
-                vo.put("stage", PRODUCTION);
+            if (version.equals(v.path("version").asText())) {
                 hit = true;
-            } else if (PRODUCTION.equals(vo.path("stage").asText())) {
-                vo.put("stage", ARCHIVED);
+                break;
             }
         }
         if (!hit) {
             throw new IllegalArgumentException("模型 " + model + " 不存在版本 " + version);
+        }
+        // 只有归档文件真实存在，切线上才有意义；否则注册表会指向一个无法加载的版本
+        if (!artifactExists(model, entry, version)) {
+            throw new IllegalArgumentException("版本 " + version + " 缺少归档文件，无法上线（请先同步或重新训练）");
+        }
+        // 特征体系升级后旧权重无法被当前代码加载，禁止上线
+        JsonNode target = findVersion(entry, version);
+        JsonNode currentFv = root.get("featureVersion");
+        if (currentFv != null && target != null && target.hasNonNull("featureVersion")
+                && currentFv.asInt() != target.path("featureVersion").asInt()) {
+            throw new IllegalArgumentException("版本 " + version + " 的特征体系（v"
+                    + target.path("featureVersion").asText() + "）与当前代码（v"
+                    + currentFv.asText() + "）不一致，请重新训练后再上线");
+        }
+        for (JsonNode v : versions) {
+            ObjectNode vo = (ObjectNode) v;
+            if (version.equals(vo.path("version").asText())) {
+                vo.put("stage", PRODUCTION);
+            } else if (PRODUCTION.equals(vo.path("stage").asText())) {
+                vo.put("stage", ARCHIVED);
+            }
         }
         entry.put("active", version);
         root.put("updatedAt", LocalDateTime.now().format(TIME));
@@ -94,7 +113,7 @@ public class ModelRegistryService {
         return root;
     }
 
-    /** 回滚到上一个归档版本（按训练时间倒序找最近的非当前版本）。 */
+    /** 回滚到最近一个可加载（归档文件存在）的非当前版本。 */
     public JsonNode rollback(String model) {
         ObjectNode root = read();
         if (root == null) {
@@ -109,15 +128,77 @@ public class ModelRegistryService {
         String target = null;
         for (int i = versions.size() - 1; i >= 0; i--) {
             String v = versions.get(i).path("version").asText();
-            if (!v.equals(active)) {
+            // 跳过当前版本和已丢失归档的历史版本，避免回滚后线上模型加载失败
+            if (!v.equals(active) && artifactExists(model, entry, v)) {
                 target = v;
                 break;
             }
         }
         if (target == null) {
-            throw new IllegalStateException("模型 " + model + " 只有一个版本，无法回滚");
+            throw new IllegalStateException("模型 " + model + " 没有可回滚的历史版本（归档文件缺失或仅一个版本）");
         }
         return promote(model, target);
+    }
+
+    /**
+     * 指定模型的当前线上版本条目（含 dataVersion / featureVersion 等元数据）：
+     * 注册表 active 指向的版本且归档文件存在、特征版本一致时返回，否则返回 null。
+     * 报告中心据此做「生成时模型/数据版本」快照。
+     */
+    public JsonNode activeVersionMeta(String model) {
+        ObjectNode root = read();
+        if (root == null) {
+            return null;
+        }
+        JsonNode entry = root.path("models").get(model);
+        if (entry == null) {
+            return null;
+        }
+        String active = entry.path("active").asText(null);
+        if (active == null || active.isEmpty()) {
+            return null;
+        }
+        if (!artifactExists(model, entry, active)) {
+            return null;
+        }
+        // 注册表顶层记录了最近一次同步/训练的特征版本；与目标版本不一致则视为不可加载
+        JsonNode currentFv = root.get("featureVersion");
+        JsonNode item = findVersion(entry, active);
+        if (currentFv != null && item != null && item.hasNonNull("featureVersion")
+                && currentFv.asInt() != item.path("featureVersion").asInt()) {
+            return null;
+        }
+        return item;
+    }
+
+    /**
+     * 指定模型的当前线上版本：注册表 active 指向的版本且有归档文件时返回，否则返回 null。
+     * 预测服务据此决定加载哪个版本、以及缓存 key 的版本维度。
+     */
+    public String activeVersion(String model) {
+        JsonNode item = activeVersionMeta(model);
+        return item == null ? null : item.path("version").asText(null);
+    }
+
+    /** 在模型的版本列表中查找指定版本条目。 */
+    private JsonNode findVersion(JsonNode entry, String version) {
+        for (JsonNode v : entry.path("versions")) {
+            if (version.equals(v.path("version").asText())) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    /** 版本归档文件是否存在（artifact 字段相对 data/models，缺省为 versions/<model>/<version>.joblib）。 */
+    private boolean artifactExists(String model, JsonNode entry, String version) {
+        JsonNode item = findVersion(entry, version);
+        String rel = item == null ? null : item.path("artifact").asText(null);
+        Path base = Paths.get(registryFile).toAbsolutePath().normalize().getParent();
+        Path artifact = (rel != null && !rel.isEmpty())
+                ? base.resolve(rel)
+                : base.resolve("versions").resolve(model).resolve(version + ".joblib");
+        return Files.isRegularFile(artifact);
     }
 
     /** 读取注册表原文（供其它服务使用）。 */
@@ -138,8 +219,11 @@ public class ModelRegistryService {
         try {
             Path path = Paths.get(registryFile).toAbsolutePath().normalize();
             Files.createDirectories(path.getParent());
-            Files.writeString(path, om.writerWithDefaultPrettyPrinter().writeValueAsString(root),
+            // 先写临时文件再原子替换：避免进程中断留下半截 JSON，导致注册表整体不可读
+            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+            Files.writeString(tmp, om.writerWithDefaultPrettyPrinter().writeValueAsString(root),
                     StandardCharsets.UTF_8);
+            Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             throw new RuntimeException("写入模型注册表失败：" + e.getMessage(), e);
         }

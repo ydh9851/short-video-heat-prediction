@@ -73,6 +73,8 @@ public class SecurityConfigurer {
         String[] ignores = securityIgnoreUrls.toArray(new String[0]);
 
         http
+                // 采用 Session + 严格 CORS 白名单 + SameSite Cookie 降低 CSRF 风险；
+                // 若后续改为前后端完全分离部署，再引入 CSRF Token 机制。
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .authenticationManager(authenticationManager)
@@ -82,10 +84,15 @@ public class SecurityConfigurer {
                         .accessDeniedHandler(restAccessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(ignores).permitAll()
+                        // 前端静态资源与登录页必须匿名可访问，否则浏览器无法加载 SPA
+                        .requestMatchers("/", "/index.html", "/favicon.ico", "/admin/**",
+                                "/assets/**", "/eda/**", "/error").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/**").hasRole(RoleEnum.ADMIN.getName())
                         .requestMatchers("/api/admin/**").hasRole(RoleEnum.ADMIN.getName())
                         .requestMatchers("/video/**").hasRole(RoleEnum.ADMIN.getName())
-                        .requestMatchers("/api/student/**").hasRole(RoleEnum.VIP.getName())
-                        .anyRequest().permitAll())
+                        // 业务接口默认要求登录，避免匿名调用预测/导入/实验造成资源耗尽
+                        .anyRequest().authenticated())
                 .formLogin(form -> form
                         .successHandler(restAuthenticationSuccessHandler)
                         .failureHandler(restAuthenticationFailureHandler))
@@ -105,10 +112,16 @@ public class SecurityConfigurer {
     public CorsConfigurationSource corsConfigurationSource() {
         final CorsConfiguration configuration = new CorsConfiguration();
         configuration.setMaxAge(3600L);
-        configuration.setAllowedOriginPatterns(Collections.singletonList("*"));
-        configuration.setAllowedMethods(Collections.singletonList("*"));
+        List<String> origins = systemConfig.getCorsAllowedOrigins();
+        if (origins == null || origins.isEmpty()) {
+            // 本地开发默认值；生产必须通过 CORS_ALLOWED_ORIGINS 显式配置
+            origins = List.of("http://localhost:8002", "http://127.0.0.1:8002");
+        }
+        configuration.setAllowedOriginPatterns(origins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowCredentials(true);
         configuration.setAllowedHeaders(Collections.singletonList("*"));
+        configuration.setExposedHeaders(List.of("X-Trace-Id"));
         final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
         return source;

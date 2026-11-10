@@ -1,6 +1,6 @@
 package com.alvis.media.service;
 
-import com.alvis.media.utility.PythonEngineClient;
+import com.alvis.media.utility.PythonGateway;
 import com.alvis.media.utility.TraceContext;
 import com.alvis.media.viewmodel.predict.PredictRequestVM;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,9 +22,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -55,7 +53,7 @@ public class ShadowService {
     @Value("${system.data.logDir:../data/logs}")
     private String logDir;
 
-    private final PythonEngineClient engine;
+    private final PythonGateway gateway;
     private final ObjectMapper om = new ObjectMapper();
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
@@ -64,8 +62,8 @@ public class ShadowService {
         return t;
     });
 
-    public ShadowService(PythonEngineClient engine) {
-        this.engine = engine;
+    public ShadowService(PythonGateway gateway) {
+        this.gateway = gateway;
     }
 
     /** 该请求是否需要影子打分（同一模型自比没有意义）。 */
@@ -78,21 +76,17 @@ public class ShadowService {
      * 异步记录一次影子打分；任何异常只记日志，绝不影响主流程。
      */
     public void recordAsync(PredictRequestVM req, String primaryModel, double primaryPrediction) {
-        if (!enabledFor(primaryModel) || !engine.available()) {
+        if (!enabledFor(primaryModel) || !gateway.engineAvailable()) {
             return;
         }
         String traceId = TraceContext.current();
         try {
             executor.submit(() -> {
                 try {
-                    Map<String, Object> body = new LinkedHashMap<>();
-                    body.put("model", shadowModel.trim());
-                    body.put("category", req.getVideoCategory());
-                    body.put("fans", req.getAuthorFans());
-                    body.put("hour", req.getPublishHour());
-                    body.put("weekday", req.getPublishWeekday());
-                    body.put("month", req.getPublishMonth());
-                    JsonNode node = engine.post("/predict", body);
+                    JsonNode node = gateway.predictShadow(shadowModel.trim(), req);
+                    if (node == null) {
+                        return;
+                    }
                     double shadow = node.path("prediction").asDouble();
                     double diffPct = primaryPrediction == 0 ? 0 : (shadow - primaryPrediction) / primaryPrediction * 100.0;
 
@@ -130,7 +124,7 @@ public class ShadowService {
         ObjectNode root = om.createObjectNode();
         root.put("enabled", shadowEnabled);
         root.put("shadowModel", shadowModel);
-        root.put("engineStatus", engine.status());
+        root.put("engineStatus", gateway.engineStatus());
         Path file = Paths.get(logDir).toAbsolutePath().normalize().resolve(FILE_NAME);
         ArrayNode recent = root.putArray("recent");
         if (!Files.isRegularFile(file)) {

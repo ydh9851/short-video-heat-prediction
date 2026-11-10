@@ -2,6 +2,7 @@ package com.alvis.media.service.impl;
 
 import com.alvis.media.service.EvaluationService;
 import com.alvis.media.utility.PythonCliRunner;
+import com.alvis.media.utility.PythonGateway;
 import com.alvis.media.viewmodel.evaluation.EvaluationRequestVM;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,7 +54,7 @@ public class EvaluationServiceImpl implements EvaluationService {
     @Value("${system.python.targetCompareScript:}")
     private String targetCompareScript;
 
-    private final PythonCliRunner runner;
+    private final PythonGateway gateway;
     private final ObjectMapper om = new ObjectMapper();
 
     private static final Set<String> EVAL_MODES = new HashSet<>(Arrays.asList(
@@ -153,7 +154,7 @@ public class EvaluationServiceImpl implements EvaluationService {
             throw new IllegalArgumentException("不支持的实验模式: " + mode);
         }
 
-        String out = runner.run(script, args, EVAL_TIMEOUT_SECONDS);
+        String out = gateway.runCli(script, args, EVAL_TIMEOUT_SECONDS);
         try {
             JsonNode node = om.readTree(PythonCliRunner.lastJsonLine(out));
             if (node.hasNonNull("error")) {

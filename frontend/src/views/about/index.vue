@@ -21,29 +21,9 @@
         </div>
       </div>
       <div class="hero-right">
-        <div class="hero-stat">
-          <b>36,381</b>
-          <span>训练样本</span>
-        </div>
-        <div class="hero-stat">
-          <b>0.818</b>
-          <span>LightGBM R²(log)</span>
-        </div>
-        <div class="hero-stat">
-          <b>89.5%</b>
-          <span>90% 区间实测覆盖</span>
-        </div>
-        <div class="hero-stat">
-          <b>+9.46pp</b>
-          <span>特征维度增益</span>
-        </div>
-        <div class="hero-stat">
-          <b>17</b>
-          <span>类可复现实验</span>
-        </div>
-        <div class="hero-stat">
-          <b>34 ms</b>
-          <span>预测响应（常驻服务）</span>
+        <div v-for="s in heroStats" :key="s.key" class="hero-stat">
+          <b>{{ s.value }}</b>
+          <span>{{ s.label }}</span>
         </div>
       </div>
     </section>
@@ -127,7 +107,7 @@
           <div class="section-title" data-reveal>数据集与特征体系</div>
           <el-descriptions :column="1" border size="small" class="data-desc">
             <el-descriptions-item label="数据集">Kaggle 公开数据集 chaoqunx/douyin-video-datasets（Apache-2.0）</el-descriptions-item>
-            <el-descriptions-item label="规模">45,476 行 × 9 列，零缺失值；时间跨度 2025-09-01 ~ 2025-12-26</el-descriptions-item>
+            <el-descriptions-item label="规模">{{ datasetScale }}</el-descriptions-item>
             <el-descriptions-item label="热度定义">热度 = 播放量 + 3×点赞 + 5×评论 + 8×转发（加权互动量）</el-descriptions-item>
             <el-descriptions-item label="防数据泄漏">播放/点赞/评论/转发/收藏量是热度目标的组成部分，<b>不作为特征</b>，仅使用发布时可得信息</el-descriptions-item>
           </el-descriptions>
@@ -265,10 +245,36 @@
 </template>
 
 <script>
+import dataApi from '@/api/data'
+import predictApi from '@/api/predict'
+import evaluationApi from '@/api/evaluation'
+import { readCachedStats, writeCachedStats } from '@/utils/projectStats'
+
+const DEFAULT_SCALE = '45,476 行 × 9 列，零缺失值；时间跨度 2025-09-01 ~ 2025-12-26'
+
+function fmtInt (v) {
+  const n = Number(v)
+  return Number.isFinite(n) ? Math.round(n).toLocaleString('en-US') : '—'
+}
+
+/** 把统计对象转成 hero 区域可直接渲染的数组 */
+function buildHeroStats (s) {
+  return [
+    { key: 'samples', value: fmtInt(s.samples), label: '训练样本' },
+    { key: 'bestR2', value: Number(s.bestR2).toFixed(3), label: 'LightGBM R²(log)' },
+    { key: 'coverage', value: Number(s.coverage).toFixed(1) + '%', label: '90% 区间实测覆盖' },
+    { key: 'uplift', value: '+' + Number(s.uplift).toFixed(2) + 'pp', label: '特征维度增益' },
+    { key: 'experiments', value: String(s.experiments), label: '类可复现实验' },
+    { key: 'inferMs', value: Number(s.inferMs) + ' ms', label: '预测响应（常驻服务）' }
+  ]
+}
+
 export default {
   name: 'AboutIndex',
   data () {
     return {
+      heroStats: buildHeroStats(readCachedStats()),
+      datasetScale: DEFAULT_SCALE,
       modules: [
         {
           no: 'M1', title: '热度预测', label: '回归任务 · LightGBM 为核心', icon: 'chart', tone: 'indigo',
@@ -390,6 +396,65 @@ export default {
         { title: '防数据泄漏的特征体系设计', desc: '明确排除与目标共线的互动量字段，保证「预测」在业务上真实有效，而非换个方式还原目标。' },
         { title: '可复用的企业级三端工程脚手架', desc: 'Vue + Spring Boot + Python 算法引擎，含登录鉴权、模型缓存与静态图挂载，保证系统可演示、可交付。' }
       ]
+    }
+  },
+  mounted () {
+    this.loadLiveStats()
+  },
+  methods: {
+    /** 并行拉取关键数字；任一接口失败都只回退默认值，不阻塞页面 */
+    async loadLiveStats () {
+      const next = {}
+
+      try {
+        const pRe = await dataApi.platforms()
+        const body = pRe.response || {}
+        const list = body.platforms || []
+        const def = list.find(x => x.platform === body.defaultPlatform) ||
+          list.find(x => x.available) || list[0]
+        if (def) {
+          const ovRe = await dataApi.overview(def.platform)
+          const o = ovRe.response || {}
+          if (o.total != null) next.samples = o.total
+          const pr = o.publishRange || {}
+          const min = pr.min || pr.start
+          const max = pr.max || pr.end
+          if (min && max) {
+            this.datasetScale = `${fmtInt(o.total)} 行 × 9 列，零缺失值；时间跨度 ${min} ~ ${max}`
+          }
+        }
+      } catch (e) { /* 使用默认值 */ }
+
+      try {
+        const mRe = await predictApi.metrics()
+        const rows = ((mRe.response && mRe.response.models) || []).filter(r => r.trained !== false)
+        if (rows.length) {
+          next.models = rows.length
+          const best = rows.reduce((a, b) => (Number(b.r2) > Number(a.r2) ? b : a))
+          if (best && Number.isFinite(Number(best.r2))) next.bestR2 = Number(best.r2)
+        }
+      } catch (e) { /* 使用默认值 */ }
+
+      try {
+        const moRe = await evaluationApi.modes()
+        const modes = moRe.response || []
+        if (modes.length) next.experiments = modes.length
+      } catch (e) { /* 使用默认值 */ }
+
+      try {
+        const cRe = await evaluationApi.latest('conformal')
+        const c = cRe.response || {}
+        const raw = c.coverage != null ? c.coverage
+          : (c.test_coverage != null ? c.test_coverage
+            : (c.metrics && c.metrics.coverage))
+        if (raw != null && Number.isFinite(Number(raw))) {
+          const n = Number(raw)
+          next.coverage = n <= 1 ? n * 100 : n
+        }
+      } catch (e) { /* 使用默认值 */ }
+
+      writeCachedStats(next)
+      this.heroStats = buildHeroStats(readCachedStats())
     }
   }
 }

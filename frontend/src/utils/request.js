@@ -23,7 +23,8 @@ function extractTraceId (e) {
  */
 function notifyError (e, fallback) {
   const body = e && e.response ? e.response.data : e
-  const msg = (e && e.message) || (body && body.message) || fallback || '请求失败'
+  // 业务提示优先于 axios 的英文状态码文案，保证错误信息可读
+  const msg = (body && body.message) || fallback || (e && e.message) || '请求失败'
   const traceId = extractTraceId(e)
   ElNotification({
     title: '操作失败',
@@ -53,20 +54,46 @@ const request = function (loadtip, query) {
       }
       const body = res.data || {}
       const traceId = (res.headers && (res.headers['x-trace-id'] || res.headers['X-Trace-Id'])) || body.traceId || ''
-      if (body.code === 401 || body.code === 502) {
-        router.push({ path: '/login' })
-        return Promise.reject({ message: body.message || '登录状态已失效，请重新登录', code: body.code, traceId })
-      } else if (body.code === 500 || body.code === 501) {
-        return Promise.reject({ message: body.message || '服务处理失败，请稍后重试', code: body.code, traceId })
-      } else {
+      // 只有 code === 1 代表业务成功；其余一律按失败处理，避免把错误响应当成正常数据渲染
+      if (body.code === 1) {
         return Promise.resolve(body)
       }
+      if (body.code === 400 || body.code === 401 || body.code === 402) {
+        // 登录接口本身失败（如账号密码错误）：交给登录页提示，不触发“会话失效”跳转
+        const isLoginApi = (query.url || '').indexOf('/api/user/login') === 0
+        if (!isLoginApi) {
+          router.push({ path: '/login' })
+        }
+        return Promise.reject({ message: body.message || '登录状态已失效，请重新登录', code: body.code, traceId, silent: true })
+      }
+      if (body.code === 404) {
+        // 资源不存在由调用方自行处理（如任务轮询），不弹全局提示避免重复打扰
+        return Promise.reject({ message: body.message || '资源不存在', code: 404, traceId, silent: true })
+      }
+      return Promise.reject({
+        message: body.message || (body.code === 502 ? '没有权限执行该操作' : '请求失败，请稍后重试'),
+        code: body.code,
+        traceId
+      })
     })
     .catch(e => {
       if (loadtip) {
         loading.close()
       }
-      notifyError(e)
+      if (e && e.silent) {
+        return Promise.reject(e)
+      }
+      const status = e && e.response && e.response.status
+      if (status === 401) {
+        router.push({ path: '/login' })
+        notifyError(e, '登录状态已失效，请重新登录')
+      } else if (status === 403) {
+        notifyError(e, '没有权限执行该操作')
+      } else if (status === 429) {
+        notifyError(e, '请求过于频繁，请稍后再试')
+      } else {
+        notifyError(e)
+      }
       return Promise.reject(e)
     })
 }
@@ -136,11 +163,39 @@ const form = function (url, params, timeoutMs) {
   return request(false, query)
 }
 
+const put = function (url, params, timeoutMs) {
+  const query = {
+    baseURL: import.meta.env.VITE_APP_URL,
+    url: url,
+    method: 'put',
+    withCredentials: true,
+    timeout: timeoutMs || 30000,
+    data: params,
+    headers: { 'Content-Type': 'application/json', 'request-ajax': true }
+  }
+  return request(false, query)
+}
+
+const del = function (url, params, timeoutMs) {
+  const query = {
+    baseURL: import.meta.env.VITE_APP_URL,
+    url: url,
+    method: 'delete',
+    withCredentials: true,
+    timeout: timeoutMs || 30000,
+    params: params,
+    headers: { 'request-ajax': true }
+  }
+  return request(false, query)
+}
+
 export {
   post,
   postWithLoadTip,
   postWithOutLoadTip,
   get,
+  put,
+  del,
   form,
   notifyError
 }

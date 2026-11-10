@@ -26,7 +26,9 @@
         </div>
       </div>
       <div class="cf-note">
-        名义覆盖 90%，实测覆盖率 <b>89.5%</b>（保形法在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α）；
+        名义覆盖 90%，实测覆盖率
+        <confidence-badge :value="coverage" :target="90" label="" />
+        （保形法在样本可交换假设下满足 P(y ∈ [lo, hi]) ≥ 1−α）；
         Mondrian 分组「{{ conformal.mondrian_group }}」，q̂ = {{ fmt(conformal.qhat_used, 3) }}。
         代价是区间更宽——这是「保证优先」而非「宽度优先」的取舍。
       </div>
@@ -43,6 +45,7 @@
 <script>
 import { formatNum, fmt } from '@/utils/format'
 import AppEmpty from '@/components/AppEmpty'
+import ConfidenceBadge from '@/components/ConfidenceBadge'
 
 /**
  * 保形区间区块：展示带有限样本覆盖保证的 90% 区间。
@@ -52,12 +55,21 @@ import AppEmpty from '@/components/AppEmpty'
  */
 export default {
   name: 'ConformalPanel',
-  components: { AppEmpty },
+  components: { AppEmpty, ConfidenceBadge },
   props: {
     conformal: { type: Object, default: null },
     loading: { type: Boolean, default: false }
   },
   emits: ['recalc'],
+  computed: {
+    /** 后端覆盖率可能以 0~1 或 0~100 返回，统一成百分数；缺失时回退到 89.5 */
+    coverage () {
+      const c = this.conformal && this.conformal.coverage
+      if (c == null || !Number.isFinite(Number(c))) return 89.5
+      const n = Number(c)
+      return n <= 1 ? n * 100 : n
+    }
+  },
   methods: { formatNum, fmt }
 }
 </script>

@@ -104,7 +104,7 @@ def _b64(data):
 
 
 # ------------------------------------------------------------------ 主流程
-def build(category="美食", fans=50000, hour=3, weekday=2, month=9, model_name="lgbm"):
+def build(category="美食", fans=50000, hour=3, weekday=2, month=9, model_name="lgbm", name=None):
     t0 = time.perf_counter()
     bundle, trained_now = P.load_or_train(model_name)
     model, meta = bundle["model"], bundle["meta"]
@@ -276,7 +276,14 @@ def build(category="美食", fans=50000, hour=3, weekday=2, month=9, model_name=
             .replace("__SUGG__", sugg_html))
 
     os.makedirs(REPORT_DIR, exist_ok=True)
-    name = "explain_%s.html" % datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 允许调用方指定文件名（报告中心按报告 ID 命名，避免同秒并发撞名）；
+    # 缺省保持时间戳命名，兼容旧链路
+    if not name:
+        name = "explain_%s.html" % datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 只取文件名部分，防止路径穿越
+    name = os.path.basename(name)
+    if not name.endswith(".html"):
+        name += ".html"
     path = os.path.join(REPORT_DIR, name)
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
@@ -301,12 +308,14 @@ def main():
     ap.add_argument("--weekday", type=int, default=2)
     ap.add_argument("--month", type=int, default=9)
     ap.add_argument("--model", default="lgbm")
+    ap.add_argument("--name", default=None, help="输出文件名（可选，缺省按时间戳命名）")
     args = ap.parse_args()
     # 与其它脚本一致：Java 侧用 URL 编码传中文类别，这里解码还原
     from urllib.parse import unquote_plus
     category = unquote_plus(args.category) if "%" in args.category else args.category
     try:
-        print(json.dumps(build(category, args.fans, args.hour, args.weekday, args.month, args.model),
+        print(json.dumps(build(category, args.fans, args.hour, args.weekday, args.month, args.model,
+                               name=args.name),
                          ensure_ascii=False))
     except Exception as exc:
         print(json.dumps({"error": str(exc), "trace": traceback.format_exc(),

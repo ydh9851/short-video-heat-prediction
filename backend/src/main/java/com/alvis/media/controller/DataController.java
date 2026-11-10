@@ -1,6 +1,7 @@
 package com.alvis.media.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.alvis.media.annotation.OperationLog;
 import com.alvis.media.base.BaseApiController;
 import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.DataService;
@@ -26,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class DataController extends BaseApiController {
 
     private final DataService dataService;
+    private final com.alvis.media.service.JobService jobService;
 
     /** 数据集注册表：已导入的平台与元信息 */
     @GetMapping("/platforms")
@@ -51,15 +53,21 @@ public class DataController extends BaseApiController {
         return RestResponse.ok(dataService.samples(resolve(platform), page, size, category, keyword));
     }
 
-    /** 触发某平台原始数据导入（读取 data/raw 下对应文件，调用 Python ingest.py 归一化） */
+    /**
+     * 触发某平台原始数据导入：提交到任务中心异步执行，立即返回 jobId。
+     * 导入耗时可达十余分钟，同步执行会被浏览器/代理掐断，前端应轮询任务状态。
+     */
     @PostMapping("/import")
-    public RestResponse<JsonNode> importDataset(
+    @OperationLog("data.import")
+    public RestResponse<Long> importDataset(
             @RequestParam(value = "platform") String platform) {
-        return RestResponse.ok(dataService.importPlatform(platform));
+        return RestResponse.ok(jobService.submit("data.import",
+                java.util.Map.of("platform", platform)));
     }
 
     /** 上传原始数据文件到 data/raw（自动补平台前缀，保证导入时能被自动识别） */
     @PostMapping("/upload")
+    @OperationLog("data.upload")
     public RestResponse<JsonNode> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "platform") String platform) {
@@ -70,6 +78,13 @@ public class DataController extends BaseApiController {
     @GetMapping("/raw-files")
     public RestResponse<JsonNode> rawFiles() {
         return RestResponse.ok(dataService.rawFiles());
+    }
+
+    /** 数据血缘：原始文件 → 规范化数据集 → 数据集版本 → 模型版本 */
+    @GetMapping("/lineage")
+    public RestResponse<JsonNode> lineage(
+            @RequestParam(value = "platform", required = false) String platform) {
+        return RestResponse.ok(dataService.lineage(resolve(platform)));
     }
 
     /** 数据质量门禁：8 项断言，返回 PASS / WARN / FAIL 与逐项明细 */

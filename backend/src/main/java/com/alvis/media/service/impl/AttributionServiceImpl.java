@@ -1,7 +1,9 @@
 package com.alvis.media.service.impl;
 
 import com.alvis.media.service.AttributionService;
+import com.alvis.media.service.ModelRegistryService;
 import com.alvis.media.utility.PythonCliRunner;
+import com.alvis.media.utility.PythonGateway;
 import com.alvis.media.viewmodel.predict.PredictRequestVM;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,8 +25,9 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class AttributionServiceImpl implements AttributionService {
 
-    private final PythonCliRunner runner;
+    private final PythonGateway gateway;
     private final StringRedisTemplate redisTemplate;
+    private final ModelRegistryService registry;
     private final ObjectMapper om = new ObjectMapper();
 
     @Value("${system.python.attributionScript:}")
@@ -33,14 +36,22 @@ public class AttributionServiceImpl implements AttributionService {
     @Value("${system.python.reportScript:}")
     private String reportScript;
 
-    public AttributionServiceImpl(PythonCliRunner runner, StringRedisTemplate redisTemplate) {
-        this.runner = runner;
+    public AttributionServiceImpl(PythonGateway gateway, StringRedisTemplate redisTemplate,
+                                  ModelRegistryService registry) {
+        this.gateway = gateway;
         this.redisTemplate = redisTemplate;
+        this.registry = registry;
+    }
+
+    /** 缓存 key 携带线上模型版本：promote / 重训后旧缓存自动失效，归因结论不会停留在旧模型上 */
+    private String versionTag() {
+        String v = registry.activeVersion("lgbm");
+        return v == null ? "none" : v;
     }
 
     @Override
     public JsonNode global() {
-        String cacheKey = "attribution:global";
+        String cacheKey = "attribution:global:" + versionTag();
         JsonNode cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -62,7 +73,7 @@ public class AttributionServiceImpl implements AttributionService {
         if (req.getPublishWeekday() == null) req.setPublishWeekday(5);
         if (req.getPublishMonth() == null) req.setPublishMonth(6);
 
-        String cacheKey = "attribution:explain:" + req.getVideoCategory() + ":" + req.getAuthorFans()
+        String cacheKey = "attribution:explain:" + versionTag() + ":" + req.getVideoCategory() + ":" + req.getAuthorFans()
                 + ":" + req.getPublishHour() + ":" + req.getPublishWeekday() + ":" + req.getPublishMonth();
         JsonNode cached = readCache(cacheKey);
         if (cached != null) {
@@ -86,7 +97,7 @@ public class AttributionServiceImpl implements AttributionService {
         if (feature == null || feature.trim().isEmpty()) {
             feature = "author_fans_log";
         }
-        String cacheKey = "attribution:pdp:" + feature;
+        String cacheKey = "attribution:pdp:" + versionTag() + ":" + feature;
         JsonNode cached = readCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -127,7 +138,7 @@ public class AttributionServiceImpl implements AttributionService {
     }
 
     private JsonNode execWith(String script, List<String> args) {
-        String out = runner.run(script, args);
+        String out = gateway.runCli(script, args);
         try {
             JsonNode node = om.readTree(PythonCliRunner.lastJsonLine(out));
             if (node.hasNonNull("error")) {

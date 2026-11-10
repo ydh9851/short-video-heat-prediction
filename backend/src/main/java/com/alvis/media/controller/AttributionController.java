@@ -6,6 +6,7 @@ import com.alvis.media.base.RestResponse;
 import com.alvis.media.service.AttributionService;
 import com.alvis.media.viewmodel.predict.PredictRequestVM;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +29,7 @@ public class AttributionController extends BaseApiController {
 
     /** 单样本归因：一条视频的各特征贡献 + 运营建议 */
     @PostMapping("/explain")
-    public RestResponse<JsonNode> explain(@RequestBody PredictRequestVM req) {
+    public RestResponse<JsonNode> explain(@RequestBody @Valid PredictRequestVM req) {
         return RestResponse.ok(attributionService.explain(req));
     }
 
@@ -43,7 +44,7 @@ public class AttributionController extends BaseApiController {
      * 返回 {file, url, sizeKB}，前端用 url 直接打开 / 下载。
      */
     @PostMapping("/report")
-    public RestResponse<JsonNode> report(@RequestBody PredictRequestVM req) {
+    public RestResponse<JsonNode> report(@RequestBody @Valid PredictRequestVM req) {
         return RestResponse.ok(attributionService.report(req));
     }
 }

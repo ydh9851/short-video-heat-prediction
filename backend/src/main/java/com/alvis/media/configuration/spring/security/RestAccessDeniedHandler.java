@@ -17,6 +17,7 @@ import java.io.IOException;
 public class RestAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, AccessDeniedException e) throws IOException, ServletException {
+        httpServletResponse.setStatus(HttpServletResponse.SC_FORBIDDEN);
         RestUtil.response(httpServletResponse, SystemCode.AccessDenied);
     }
 }

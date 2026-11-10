@@ -5,9 +5,21 @@
         <hamburger id="hamburger-container" :is-active="sidebar.opened" />
       </div>
       <breadcrumb id="breadcrumb-container" class="breadcrumb-container" />
+      <case-bar />
     </div>
 
     <div class="right-menu">
+      <div class="right-menu-item hover-effect cmd-trigger" title="命令面板（Ctrl / Cmd + K）"
+           @click="$root.$emit('app:command')">
+        <svg-icon icon-class="search" />
+        <span class="cmd-key">⌘K</span>
+      </div>
+
+      <div class="right-menu-item hover-effect" title="演示导览"
+           @click="$root.$emit('app:tour')">
+        <svg-icon icon-class="question" />
+      </div>
+
       <div class="right-menu-item hover-effect" :title="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">
         <svg-icon :icon-class="isFullscreen ? 'exit-fullscreen' : 'fullscreen'" />
       </div>
@@ -46,11 +58,13 @@ import { mapGetters, mapMutations } from 'vuex'
 import loginApi from '@/api/login'
 import Breadcrumb from '@/components/Breadcrumb'
 import Hamburger from '@/components/Hamburger'
+import CaseBar from './CaseBar'
 
 export default {
   components: {
     Breadcrumb,
-    Hamburger
+    Hamburger,
+    CaseBar
   },
   data () {
     return {
@@ -158,6 +172,22 @@ export default {
       &:hover {
         background: rgba(99, 102, 241, .08);
         color: #6366f1;
+      }
+    }
+
+    .cmd-trigger {
+      width: auto;
+      padding: 0 9px;
+      gap: 5px;
+
+      .cmd-key {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .02em;
+        color: #94a3b8;
+        border: 1px solid #e2e8f0;
+        border-radius: 5px;
+        padding: 1px 4px;
       }
     }
   }

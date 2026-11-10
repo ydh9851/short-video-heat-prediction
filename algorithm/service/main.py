@@ -22,6 +22,7 @@
 """
 import os
 import sys
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -38,8 +39,11 @@ import predict_api as P  # noqa: E402
 MODEL_CHOICES = ("lgbm", "xgb", "rf", "lr", "knn", "svm", "dt")
 WARMUP_MODEL = os.environ.get("WARMUP_MODEL", "lgbm")
 
-# 已加载的模型 bundle 计数，用于 /health 展示
+# 已加载的模型 bundle 缓存：{(model, resolvedVersion): (bundle, trained_now)}
+# resolvedVersion 变化（promote/rollback）时自动重新加载对应归档，实现治理闭环
+_bundle_cache = {}
 _loaded = set()
+_bundle_lock = threading.Lock()
 
 
 class PredictIn(BaseModel):
@@ -56,12 +60,17 @@ class BatchIn(BaseModel):
     items: list[PredictIn] = Field(default_factory=list)
 
 
-def _bundle(name):
+def _bundle(name, version=None):
     if name not in MODEL_CHOICES:
         raise HTTPException(status_code=400, detail="model 取值仅支持 " + " / ".join(MODEL_CHOICES))
-    bundle, trained_now = P.load_or_train(name)
-    _loaded.add(name)
-    return bundle, trained_now
+    resolved = version or P.active_version(name)
+    key = (name, resolved or "cache")
+    with _bundle_lock:
+        if key not in _bundle_cache:
+            bundle, trained_now = P.load_or_train(name, version=version)
+            _bundle_cache[key] = (bundle, trained_now)
+            _loaded.add(name)
+        return _bundle_cache[key]
 
 
 def _predict_one(bundle, item):
@@ -81,6 +90,7 @@ def _predict_one(bundle, item):
     pred_log = float(model.predict(X)[0])
     return {
         "model": item.model,
+        "model_version": bundle.get("model_version"),
         "prediction": float(np.expm1(pred_log)),
         "prediction_log": pred_log,
         "metrics": bundle.get("metrics"),
@@ -105,11 +115,19 @@ app = FastAPI(title="short-video-heat-engine", version="1.0", lifespan=lifespan)
 
 @app.get("/health")
 def health():
+    # 暴露已加载模型的版本，便于确认 promote/rollback 后服务是否切换到了对应归档
+    loaded_versions = {}
+    for name in sorted(_loaded):
+        key = (name, P.active_version(name) or "cache")
+        cached = _bundle_cache.get(key)
+        loaded_versions[name] = cached[0].get("model_version") if cached else None
     return {
         "status": "UP",
         "featureVersion": P.FEATURE_VERSION,
         "warmupModel": WARMUP_MODEL,
+        "activeVersion": P.active_version(WARMUP_MODEL),
         "loadedModels": sorted(_loaded),
+        "loadedVersions": loaded_versions,
         "pid": os.getpid(),
     }
 
@@ -144,6 +162,7 @@ def predict_batch(payload: BatchIn):
         items.append(one)
     return {
         "model": payload.model,
+        "model_version": bundle.get("model_version"),
         "trained_now": trained_now,
         "count": len(items),
         # 键名与 CLI 批量输出保持一致（Java 侧按 results 解析）
