@@ -25,7 +25,7 @@
 const STEPS = [
   {
     route: '/dashboard',
-    target: '.page-head',
+    target: '.hero',
     title: '运行概览',
     text: '这里是系统的总入口：关键指标、预测趋势与任务状态都集中在这一页，先建立整体印象。'
   },
@@ -106,7 +106,7 @@ export default {
     }
   },
   mounted () {
-    window.addEventListener('resize', this.measure)
+    window.addEventListener('resize', () => this.measure())
     window.addEventListener('keydown', this.onKeydown)
   },
   beforeUnmount () {
@@ -124,7 +124,7 @@ export default {
       const step = this.step
       const sameRoute = this.$route.path === step.route
       const run = () => {
-        this.timer = setTimeout(this.measure, sameRoute ? 180 : 420)
+        this.timer = setTimeout(() => this.measure(), sameRoute ? 180 : 420)
       }
       if (sameRoute) {
         run()

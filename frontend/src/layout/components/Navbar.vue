@@ -10,13 +10,13 @@
 
     <div class="right-menu">
       <div class="right-menu-item hover-effect cmd-trigger" title="命令面板（Ctrl / Cmd + K）"
-           @click="$root.$emit('app:command')">
+           @click="openCommandPalette">
         <svg-icon icon-class="search" />
         <span class="cmd-key">⌘K</span>
       </div>
 
       <div class="right-menu-item hover-effect" title="演示导览"
-           @click="$root.$emit('app:tour')">
+           @click="startDemoTour">
         <svg-icon icon-class="question" />
       </div>
 
@@ -54,6 +54,7 @@
 </template>
 
 <script>
+import bus from '@/utils/bus'
 import { mapGetters, mapMutations } from 'vuex'
 import loginApi from '@/api/login'
 import Breadcrumb from '@/components/Breadcrumb'
@@ -84,6 +85,13 @@ export default {
   methods: {
     toggleSideBar () {
       this.$store.dispatch('app/toggleSideBar')
+    },
+    // 模板里不能直接用导入的模块，故经方法转发到全局事件总线
+    openCommandPalette () {
+      bus.emit('app:command')
+    },
+    startDemoTour () {
+      bus.emit('app:tour')
     },
     toggleFullscreen () {
       const el = document.documentElement

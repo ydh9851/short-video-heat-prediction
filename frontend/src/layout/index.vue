@@ -20,6 +20,7 @@
 
 <script>
 import { AppMain, Navbar, Sidebar, TagsView } from './components'
+import bus from '@/utils/bus'
 import ResizeMixin from './mixin/ResizeHandler'
 import { mapState } from 'vuex'
 import BackToTop from '@/components/BackToTop'
@@ -74,12 +75,12 @@ export default {
     }
   },
   mounted () {
-    this.$root.$on('app:command', this.openCommand)
-    this.$root.$on('app:tour', this.startTour)
+    bus.on('app:command', this.openCommand)
+    bus.on('app:tour', this.startTour)
   },
   beforeUnmount () {
-    this.$root.$off('app:command', this.openCommand)
-    this.$root.$off('app:tour', this.startTour)
+    bus.off('app:command', this.openCommand)
+    bus.off('app:tour', this.startTour)
   }
 }
 </script>
